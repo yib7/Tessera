@@ -1,0 +1,3 @@
+Easy: Bob, 1
+Normal: Tim, 3
+Hard: Vanessa, 5
