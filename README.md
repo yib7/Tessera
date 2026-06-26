@@ -1,1 +1,118 @@
-Run the MemoryGame.java file in a JRE and follow the onscreen directions on the small window. The game is set to Normal mode at the start; you can change the difficulty after the game has begun. Easy mode is a 4 x 4 board, Normal mode is a 4 x 7 board, and Hard mode is a 7 x 8 board. Has the ability to adjust the character symbols used via the "LatinAlphabet.java" file, specifically with the "alphabet_length" variable. Default version uses basic Latin alphabet and some special symbols like "+" or "-". Includes a "leaderboard.txt" file that states the top player of each difficulty and their respective number of turns, one + their number of missed matches. Try to beat the scores set by Bob, Tim and Vanessa!
+# Tessera
+
+[![CI](https://github.com/yib7/Tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/Tessera/actions/workflows/ci.yml)
+
+A tile-matching memory game for the desktop, written in Java with Swing.
+
+Pick a board size, memorize the tiles, and clear the board in as few turns and
+as little time as you can. Scores are ranked per board size and saved between
+sessions.
+
+![Tessera mid-game: a matched pair in green, two face-up tiles, the rest face down](renders/game.png)
+
+![The main menu, where you choose board size and tile theme](renders/menu.png)
+
+## What it does
+
+- Three board sizes: Easy (3x4), Normal (4x7), Hard (7x8).
+- Three tile themes: letters, numbers, and geometric symbols. Faces are drawn
+  in code, so the game bundles no image files.
+- A scoring system that goes beyond raw turn count. Score rewards matched pairs,
+  penalizes mismatched flips, and adds a speed bonus that decays over time, so a
+  fast clean game beats a slow lucky one.
+- A live HUD showing turns, score, and elapsed time.
+- Pause and resume that stops the clock.
+- A flip animation on every tile, drawn with a horizontal squash on a Swing
+  timer.
+- Optional sound cues, synthesized at runtime (no audio files bundled).
+- A persistent leaderboard keeping the top five runs per board size. The file
+  format tolerates a missing or corrupt file and ignores malformed lines instead
+  of crashing.
+- Settings (board size, theme, sound) that persist to disk.
+
+## Tech stack
+
+- Java 21
+- Swing and AWT (custom-painted components, no external look-and-feel library)
+- No third-party runtime dependencies
+
+## Supported platform
+
+Tested on Windows 11 with a Java 21 runtime. The code uses only the Java
+standard library and no OS-specific calls, so it should run on macOS and Linux
+with a Java 21 runtime, though those have not been verified for this release.
+
+## Play it
+
+You need a Java 21 (or newer) runtime to run the packaged game.
+
+1. Download or build `dist/Tessera.jar` (build steps below).
+2. Double-click the jar, or run it from a terminal:
+
+   ```
+   java -jar dist/Tessera.jar
+   ```
+
+That is the whole launch. The game opens on the main menu.
+
+The leaderboard and settings are written to a `.tessera` folder in your home
+directory, so the jar can live anywhere.
+
+## Build it
+
+You need a JDK 21 (or newer) with `javac` and `jar` on your `PATH`.
+
+On Windows:
+
+```
+build.cmd
+```
+
+On macOS or Linux:
+
+```
+./build.sh
+```
+
+Either script compiles `src/` into `bin/` and packages `dist/Tessera.jar` with a
+`Main-Class` manifest entry. `run.cmd` / `run.sh` build the jar if needed, then
+launch it.
+
+If your JDK is installed but not on `PATH`, invoke the tools by full path, for
+example:
+
+```
+/path/to/jdk-21/bin/javac -d bin $(find src -name "*.java")
+/path/to/jdk-21/bin/jar --create --file dist/Tessera.jar --main-class tessera.Tessera -C bin .
+```
+
+## Run the tests
+
+The logic tests are a self-contained runner with no test framework to install.
+
+On macOS or Linux:
+
+```
+./test.sh
+```
+
+Or directly:
+
+```
+javac -d bin-test $(find src test -name "*.java")
+java -cp bin-test tessera.LogicTests
+```
+
+They cover board dealing, match detection, scoring, the leaderboard round trip
+and corrupt-file handling, and a full controller playthrough. The runner exits
+non-zero on any failure.
+
+## How it is built
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the model-view-controller
+layout, the turn state machine, and how the board, scoring, and persistence fit
+together.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
