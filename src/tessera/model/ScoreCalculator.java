@@ -33,16 +33,15 @@ public final class ScoreCalculator {
      * @param elapsedMillis wall-clock time from first flip to solve
      */
     public static int score(int pairs, int mismatches, long elapsedMillis) {
-        int base = pairs * POINTS_PER_PAIR;
-        // Larger boards are worth proportionally more, so the multiplier grows
-        // with pair count rather than being flat.
-        int sizeMultiplier = base;
+        // Each matched pair pays a flat reward, so a larger board (more pairs)
+        // is worth proportionally more than a small one for the same clean play.
+        int pairReward = pairs * POINTS_PER_PAIR;
         int penalty = mismatches * MISMATCH_PENALTY;
 
         long elapsedSeconds = Math.max(0, elapsedMillis / 1000);
         long overGrace = Math.max(0, elapsedSeconds - GRACE_SECONDS);
         int speedBonus = (int) Math.max(0, SPEED_BONUS_CAP - overGrace * DECAY_PER_SECOND);
 
-        return Math.max(0, sizeMultiplier - penalty + speedBonus);
+        return Math.max(0, pairReward - penalty + speedBonus);
     }
 }

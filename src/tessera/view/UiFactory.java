@@ -2,12 +2,9 @@ package tessera.view;
 
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -82,20 +79,5 @@ public final class UiFactory {
         label.setFont(Theme.body());
         label.setForeground(Theme.TEXT_MUTED);
         return label;
-    }
-
-    /** Fixed-size rigid gap. */
-    public static Dimension gap(int w, int h) {
-        return new Dimension(w, h);
-    }
-
-    /** Attach a hover cursor without changing painting. */
-    public static void handCursor(JButton b) {
-        b.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            }
-        });
     }
 }
