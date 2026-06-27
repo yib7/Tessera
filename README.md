@@ -8,6 +8,8 @@ Pick a board size, memorize the tiles, and clear the board in as few turns and
 as little time as you can. Scores are ranked per board size and saved between
 sessions.
 
+![Tessera playthrough: the menu, matching tiles with the flip animation, the results card, and the leaderboard](renders/demo.gif)
+
 ![Tessera mid-game: a matched pair in green, two face-up tiles, the rest face down](renders/game.png)
 
 ![The main menu, where you choose board size and tile theme](renders/menu.png)
