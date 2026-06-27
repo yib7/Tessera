@@ -122,9 +122,11 @@ Two files under `~/.tessera`:
 - `leaderboard.tsv`: top scores, one tab-delimited line per entry, grouped by
   board size, with a comment header.
 
-Both are written best-effort. A failed write to settings is ignored so it never
-blocks play; the leaderboard surfaces a write failure as an unchecked exception
-at the call site.
+Both are written best-effort. A failed settings write is ignored so it never
+blocks play. `Leaderboard.save` still raises an unchecked exception on a write
+failure, but the results screen catches it, so a disk error never breaks the
+save-score flow: the entry is already on the in-memory board and still shows for
+the session, it just is not persisted.
 
 ## Testing
 

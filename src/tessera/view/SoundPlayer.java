@@ -25,33 +25,38 @@ public final class SoundPlayer {
 
     /** A short rising blip when a tile is revealed. */
     public void flip() {
-        play(660, 70);
+        play(new int[] {660}, new int[] {70});
     }
 
     /** A brighter two-note cue on a match. */
     public void match() {
-        play(740, 80);
-        play(990, 110);
+        play(new int[] {740, 990}, new int[] {80, 110});
     }
 
     /** A low, short cue on a mismatch. */
     public void mismatch() {
-        play(300, 120);
+        play(new int[] {300}, new int[] {120});
     }
 
     /** A small ascending fanfare on a win. */
     public void win() {
-        play(523, 110);
-        play(659, 110);
-        play(784, 160);
+        play(new int[] {523, 659, 784}, new int[] {110, 110, 160});
     }
 
-    private void play(double frequencyHz, int durationMs) {
+    /**
+     * Play a cue as a sequence of tones on a single daemon thread, so a
+     * multi-note cue sounds as notes one after another instead of stacked on top
+     * of each other. Running off the EDT keeps synthesis from stalling the UI.
+     */
+    private void play(int[] frequenciesHz, int[] durationsMs) {
         if (!enabled) {
             return;
         }
-        // Run off the EDT so synthesis never stalls the UI.
-        Thread t = new Thread(() -> emit(frequencyHz, durationMs), "tessera-sound");
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < frequenciesHz.length; i++) {
+                emit(frequenciesHz[i], durationsMs[i]);
+            }
+        }, "tessera-sound");
         t.setDaemon(true);
         t.start();
     }

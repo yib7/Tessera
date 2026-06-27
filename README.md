@@ -92,6 +92,12 @@ example:
 
 The logic tests are a self-contained runner with no test framework to install.
 
+On Windows:
+
+```
+test.cmd
+```
+
 On macOS or Linux:
 
 ```

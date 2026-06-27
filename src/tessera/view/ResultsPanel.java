@@ -78,8 +78,14 @@ public final class ResultsPanel extends JPanel {
 
         Runnable doSubmit = () -> {
             String name = nameField.getText();
-            leaderboard.submit(new ScoreEntry(name, session.size(),
-                    session.score(), session.turns(), session.elapsedMillis()));
+            try {
+                leaderboard.submit(new ScoreEntry(name, session.size(),
+                        session.score(), session.turns(), session.elapsedMillis()));
+            } catch (RuntimeException ignored) {
+                // Persisting the score is best-effort. The entry is already on the
+                // in-memory board, so a disk write failure should not break the
+                // flow: show the leaderboard anyway, just without it being saved.
+            }
             navigator.show(Navigator.Screen.LEADERBOARD);
         };
         submit.addActionListener(e -> doSubmit.run());
