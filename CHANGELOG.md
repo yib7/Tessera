@@ -3,9 +3,11 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
-## v1.0.0 - 2026-06-27
+## v3.0.0 - 2026-06-27
 
-First public release.
+A ground-up revamp that rebuilds and renames the old Java GUI Memory Game into
+Tessera: one Swing window, a clean model/view/controller core, scoring, tile
+themes, a flip animation, and a persistent leaderboard.
 
 ### Added
 
@@ -22,3 +24,8 @@ First public release.
 - Runtime-synthesized sound cues, with no audio files bundled.
 - Build and run scripts for Windows, macOS, and Linux, plus a GitHub Actions CI
   workflow that compiles the sources and runs the logic tests.
+
+## Earlier releases
+
+Versions V1.0 through V2.0 shipped under the project's previous name. See the
+[GitHub releases](https://github.com/yib7/Tessera/releases) for those.
