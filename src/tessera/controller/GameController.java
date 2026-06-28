@@ -30,6 +30,7 @@ public final class GameController {
     private boolean awaitingSecond = false;
     private boolean locked = false; // input ignored during animations / pause
     private boolean paused = false;
+    private boolean previewActive = false; // the pre-game memorize phase
 
     public GameController(GameSession session, GameView view) {
         this.session = session;
@@ -42,6 +43,25 @@ public final class GameController {
 
     public boolean isPaused() {
         return paused;
+    }
+
+    public boolean isPreviewActive() {
+        return previewActive;
+    }
+
+    /**
+     * Enter the pre-game memorize phase. While it is active the board shows every
+     * face and clicks are ignored, so the run cannot start until the player has
+     * had their look. The view owns the countdown and the reveal animation; the
+     * controller only refuses input until {@link #endPreview} is called.
+     */
+    public void beginPreview() {
+        previewActive = true;
+    }
+
+    /** Leave the memorize phase and accept play. */
+    public void endPreview() {
+        previewActive = false;
     }
 
     /** Pause the clock and freeze input. */
@@ -70,7 +90,7 @@ public final class GameController {
      * when the tile is already up or matched.
      */
     public void onTileClicked(int row, int col) {
-        if (paused || locked || session.isFinished()) {
+        if (previewActive || paused || locked || session.isFinished()) {
             return;
         }
         Board board = session.board();

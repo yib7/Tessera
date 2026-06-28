@@ -42,6 +42,7 @@ public final class LogicTests {
         testLeaderboardCorruptFileIsSafe();
         testLeaderboardRanksByScore();
         testControllerFullPlaythrough();
+        testPreviewBlocksInput();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -188,6 +189,29 @@ public final class LogicTests {
                 session.mismatches() == 0);
         check("board is solved", board.isSolved());
         check("session is finished", session.isFinished());
+    }
+
+    /**
+     * The pre-game memorize phase must swallow clicks: while it is active a tap
+     * neither flips a tile nor counts a turn, and once it ends play resumes
+     * normally.
+     */
+    private static void testPreviewBlocksInput() {
+        Board board = new Board(BoardSize.EASY, TileTheme.LETTERS, new Random(7));
+        GameSession session = new GameSession(BoardSize.EASY, TileTheme.LETTERS, board);
+        GameController controller = new GameController(session, new SyncView());
+
+        controller.beginPreview();
+        check("controller reports the preview is active", controller.isPreviewActive());
+        controller.onTileClicked(0, 0);
+        check("a click during the memorize phase is ignored",
+                !board.tileAt(0, 0).isFaceUp() && session.turns() == 0);
+
+        controller.endPreview();
+        check("controller reports the preview is over", !controller.isPreviewActive());
+        controller.onTileClicked(0, 0);
+        check("a click after the memorize phase reveals the tile",
+                board.tileAt(0, 0).isFaceUp());
     }
 
     /** A GameView that runs flip callbacks immediately, so the turn resolves

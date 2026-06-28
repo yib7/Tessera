@@ -3,6 +3,15 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- A memorize phase before each round: the board opens face up for a few seconds
+  with an on-screen countdown, then flips down to begin play. Input and pause are
+  held until it ends, and the clock still starts on the first flip, so the
+  memorize time never counts against the score.
+
 ## v3.0.0 - 2026-06-27
 
 A ground-up revamp that rebuilds and renames the old Java GUI Memory Game into

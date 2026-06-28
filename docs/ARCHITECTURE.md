@@ -68,7 +68,10 @@ without a display, which is what `LogicTests` relies on.
 - `GamePanel` builds the tile grid, wires each tile's click to the controller,
   and shows the live HUD with pause and quit. It implements the controller's
   `GameView` interface, so the controller drives the animations without knowing
-  the view is Swing.
+  the view is Swing. It also runs the pre-game memorize phase: on entry it opens
+  every tile face up, counts down for a few seconds in place of the HUD stats,
+  then flips the board face down and enables input. The clock is left alone, so
+  the memorize time never counts against the score.
 - `MenuPanel`, `SettingsPanel`, `ResultsPanel`, and `LeaderboardPanel` are the
   other screens.
 - `MainWindow` is the one application window. It hosts every screen in a
@@ -102,10 +105,12 @@ A turn is two flips:
    - On a mismatch, the session records a mismatch, input is frozen, and a short
      `Timer` flips both tiles back down before input is restored.
 
-Input is ignored while a turn is resolving, while paused, or once the game is
-finished, so a fast clicker cannot reveal a third tile mid-turn. The controller
-asks the view to animate but never blocks on the animation; the view calls back
-when each flip settles.
+Input is ignored while a turn is resolving, while paused, during the pre-game
+memorize phase, or once the game is finished, so a fast clicker cannot reveal a
+third tile mid-turn. The controller asks the view to animate but never blocks on
+the animation; the view calls back when each flip settles. The memorize phase is
+a controller flag (`beginPreview` / `endPreview`) that refuses input; the view
+owns the countdown and the reveal so the rule still lives in the controller.
 
 ## Startup flow
 

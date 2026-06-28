@@ -1,8 +1,10 @@
 package tessera.view;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 
 import javax.swing.BorderFactory;
@@ -30,10 +32,14 @@ import tessera.model.Tile;
 @SuppressWarnings("serial") // Swing component; never serialized.
 public final class GamePanel extends JPanel implements GameView {
 
+    /** How long the board stays face up for the player to memorize, in seconds. */
+    private static final int PREVIEW_SECONDS = 5;
+
     private final Navigator navigator;
     private final GameSession session;
     private final GameController controller;
     private final SoundPlayer sound;
+    private final Color accent;
 
     private final TileButton[][] tiles;
     private final JLabel turnsLabel = new JLabel();
@@ -43,11 +49,22 @@ public final class GamePanel extends JPanel implements GameView {
     private final JPanel boardPanel;
     private final Timer clockTimer;
 
+    // The HUD centre flips between the live stats and the memorize countdown.
+    private final CardLayout hudCenterCards = new CardLayout();
+    private final JPanel hudCenter = new JPanel(hudCenterCards);
+    private final JLabel countdownLabel = new JLabel("", SwingConstants.CENTER);
+    private static final String CARD_STATS = "STATS";
+    private static final String CARD_COUNTDOWN = "COUNTDOWN";
+
+    private Timer previewTimer;
+    private int previewRemaining;
+
     public GamePanel(Navigator navigator, GameSession session, SoundPlayer sound) {
         this.navigator = navigator;
         this.session = session;
         this.sound = sound;
         this.controller = new GameController(session, this);
+        this.accent = Theme.fromRgb(session.theme().accentRgb());
         this.tiles = new TileButton[session.board().rows()][session.board().cols()];
 
         setLayout(new BorderLayout());
@@ -63,6 +80,7 @@ public final class GamePanel extends JPanel implements GameView {
         clockTimer.start();
 
         updateHud();
+        startPreview();
     }
 
     public GameController controller() {
@@ -93,6 +111,17 @@ public final class GamePanel extends JPanel implements GameView {
         stats.add(timeLabel);
         stats.add(Box.createHorizontalGlue());
 
+        // The same slot shows the memorize countdown before the game starts.
+        JPanel countdownCard = new JPanel(new GridBagLayout());
+        countdownCard.setOpaque(false);
+        countdownLabel.setFont(Theme.heading());
+        countdownLabel.setForeground(accent);
+        countdownCard.add(countdownLabel);
+
+        hudCenter.setOpaque(false);
+        hudCenter.add(stats, CARD_STATS);
+        hudCenter.add(countdownCard, CARD_COUNTDOWN);
+
         JPanel controls = new JPanel();
         controls.setOpaque(false);
         controls.setLayout(new BoxLayout(controls, BoxLayout.X_AXIS));
@@ -100,6 +129,9 @@ public final class GamePanel extends JPanel implements GameView {
         JButton menuButton = UiFactory.secondaryButton("Quit to menu");
         menuButton.addActionListener(e -> {
             clockTimer.stop();
+            if (previewTimer != null) {
+                previewTimer.stop();
+            }
             navigator.show(Navigator.Screen.MENU);
         });
         controls.add(pauseButton);
@@ -107,7 +139,7 @@ public final class GamePanel extends JPanel implements GameView {
         controls.add(menuButton);
 
         hud.add(title, BorderLayout.WEST);
-        hud.add(stats, BorderLayout.CENTER);
+        hud.add(hudCenter, BorderLayout.CENTER);
         hud.add(controls, BorderLayout.EAST);
         return hud;
     }
@@ -119,7 +151,6 @@ public final class GamePanel extends JPanel implements GameView {
 
     private JPanel buildBoard() {
         Board board = session.board();
-        Color accent = Theme.fromRgb(session.theme().accentRgb());
 
         JPanel panel = new JPanel(new GridLayout(board.rows(), board.cols(), 8, 8));
         panel.setOpaque(false);
@@ -154,6 +185,69 @@ public final class GamePanel extends JPanel implements GameView {
     private void refreshTime() {
         long seconds = session.elapsedMillis() / 1000;
         timeLabel.setText(String.format("Time %d:%02d", seconds / 60, seconds % 60));
+    }
+
+    // Memorize phase ---------------------------------------------------------
+
+    /**
+     * Open every tile face up and run a short countdown before the game begins,
+     * so the player gets a fair look at the board first. Input and pause stay
+     * disabled until the countdown ends and the tiles flip back down. The clock
+     * is untouched: it still starts on the player's first flip, so the memorize
+     * time never counts against the score.
+     */
+    private void startPreview() {
+        controller.beginPreview();
+        pauseButton.setEnabled(false);
+        for (TileButton[] rowTiles : tiles) {
+            for (TileButton tile : rowTiles) {
+                tile.setInteractive(false);
+                tile.setStateImmediate(true, false);
+            }
+        }
+        previewRemaining = PREVIEW_SECONDS;
+        showCountdown(previewRemaining);
+
+        previewTimer = new Timer(1000, e -> tickPreview());
+        previewTimer.start();
+    }
+
+    private void tickPreview() {
+        previewRemaining--;
+        if (previewRemaining >= 1) {
+            showCountdown(previewRemaining);
+        } else {
+            previewTimer.stop();
+            finishPreview();
+        }
+    }
+
+    private void showCountdown(int seconds) {
+        countdownLabel.setText("Memorize the board - " + seconds + "s");
+        hudCenterCards.show(hudCenter, CARD_COUNTDOWN);
+    }
+
+    /** Flip the whole board face down, then hand control to the player. */
+    private void finishPreview() {
+        hudCenterCards.show(hudCenter, CARD_STATS);
+        controller.endPreview();
+
+        int lastRow = tiles.length - 1;
+        int lastCol = tiles[lastRow].length - 1;
+        for (int r = 0; r < tiles.length; r++) {
+            for (int c = 0; c < tiles[r].length; c++) {
+                // Re-enable input only once the last tile has finished flipping.
+                Runnable whenDone = (r == lastRow && c == lastCol) ? this::onPreviewDone : null;
+                tiles[r][c].flipDown(whenDone);
+            }
+        }
+    }
+
+    private void onPreviewDone() {
+        pauseButton.setEnabled(true);
+        if (!controller.isPaused()) {
+            setBoardInteractive(true);
+        }
     }
 
     // GameView ---------------------------------------------------------------
