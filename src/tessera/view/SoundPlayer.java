@@ -1,5 +1,8 @@
 package tessera.view;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.SourceDataLine;
@@ -9,14 +12,33 @@ import javax.sound.sampled.SourceDataLine;
  * is a synthesised sine burst with a quick fade so it does not click. Sound is
  * opt-out via settings, and any audio-system failure is swallowed: a missing or
  * busy mixer must never interrupt play.
+ *
+ * <p>Cues play on short daemon threads, which the JVM would otherwise kill
+ * mid-write at exit and leave the mixer line held open. A shutdown hook closes
+ * any line still open at exit so the mixer is released cleanly.
  */
 public final class SoundPlayer {
 
     private static final float SAMPLE_RATE = 44_100f;
     private boolean enabled;
 
+    // Lines currently open on cue threads, so the shutdown hook can close them.
+    private final Set<SourceDataLine> openLines = ConcurrentHashMap.newKeySet();
+
     public SoundPlayer(boolean enabled) {
         this.enabled = enabled;
+        Runtime.getRuntime().addShutdownHook(new Thread(this::closeOpenLines,
+                "tessera-sound-shutdown"));
+    }
+
+    private void closeOpenLines() {
+        for (SourceDataLine line : openLines) {
+            try {
+                line.close();
+            } catch (RuntimeException ignored) {
+                // Best-effort release on exit; nothing left to recover to.
+            }
+        }
     }
 
     public void setEnabled(boolean enabled) {
@@ -78,10 +100,15 @@ public final class SoundPlayer {
             }
             AudioFormat format = new AudioFormat(SAMPLE_RATE, 8, 1, true, false);
             try (SourceDataLine line = AudioSystem.getSourceDataLine(format)) {
-                line.open(format);
-                line.start();
-                line.write(buffer, 0, buffer.length);
-                line.drain();
+                openLines.add(line);
+                try {
+                    line.open(format);
+                    line.start();
+                    line.write(buffer, 0, buffer.length);
+                    line.drain();
+                } finally {
+                    openLines.remove(line);
+                }
             }
         } catch (Exception ignored) {
             // No mixer, or it is busy: cues are non-essential, so do nothing.
