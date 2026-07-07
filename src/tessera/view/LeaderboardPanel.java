@@ -96,7 +96,9 @@ public final class LeaderboardPanel extends JPanel {
         south.add(back);
         add(south, BorderLayout.SOUTH);
 
-        rebuild();
+        // The table is populated by rebuild() on every show (MainWindow.show and
+        // showSize), so it is intentionally left empty here to avoid building it
+        // twice on first load.
     }
 
     /** Default to a given size when opened from a results screen. */
