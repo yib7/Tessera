@@ -128,10 +128,10 @@ public final class GamePanel extends JPanel implements GameView {
         pauseButton.addActionListener(e -> togglePause());
         JButton menuButton = UiFactory.secondaryButton("Quit to menu");
         menuButton.addActionListener(e -> {
-            clockTimer.stop();
-            if (previewTimer != null) {
-                previewTimer.stop();
-            }
+            // Stop this panel's timers before leaving. removeNotify() is the
+            // guaranteed teardown when the panel is later replaced, but quitting
+            // to the menu only hides the card, so stop the clock now too.
+            stopTimers();
             navigator.show(Navigator.Screen.MENU);
         });
         controls.add(pauseButton);
@@ -298,5 +298,31 @@ public final class GamePanel extends JPanel implements GameView {
         clockTimer.stop();
         sound.win();
         navigator.showResults(session);
+    }
+
+    /**
+     * Stop every Swing Timer this panel owns and any in-flight tile flip
+     * animations. This is the single teardown path for the panel's timers: it
+     * runs whenever the panel leaves the component hierarchy (the CardLayout
+     * replaces the GAME card on each replay, or the window closes), so an
+     * orphaned panel can never keep a clock, preview, or flip Timer firing
+     * {@code repaint()} against dead UI.
+     */
+    @Override
+    public void removeNotify() {
+        stopTimers();
+        super.removeNotify();
+    }
+
+    private void stopTimers() {
+        clockTimer.stop();
+        if (previewTimer != null) {
+            previewTimer.stop();
+        }
+        for (TileButton[] rowTiles : tiles) {
+            for (TileButton tile : rowTiles) {
+                tile.stopAnimation();
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 package tessera.view;
 
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 
@@ -73,10 +74,24 @@ public final class MainWindow extends JFrame implements Navigator {
         Board board = new Board(settings.boardSize(), settings.tileTheme());
         GameSession session = new GameSession(settings.boardSize(),
                 settings.tileTheme(), board);
+        // Detach any previous game panel first. Adding a new card under the same
+        // name only replaces the CardLayout entry; the old panel stays attached
+        // and keeps its clock Timer firing forever. Removing it fires its
+        // removeNotify(), the single place that stops that panel's timers.
+        disposePreviousGamePanel();
+
         GamePanel gamePanel = new GamePanel(this, session, sound);
-        // Replace any previous game card so each play starts fresh.
         root.add(gamePanel, Screen.GAME.name());
         cards.show(root, Screen.GAME.name());
+    }
+
+    /** Remove any existing GamePanel so its removeNotify() stops its timers. */
+    private void disposePreviousGamePanel() {
+        for (Component child : root.getComponents()) {
+            if (child instanceof GamePanel) {
+                root.remove(child);
+            }
+        }
     }
 
     @Override

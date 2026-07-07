@@ -136,6 +136,15 @@ public final class TileButton extends JComponent {
         animTimer.start();
     }
 
+    /**
+     * Stop any running flip animation without invoking its completion callback.
+     * Called during panel teardown so a Timer cannot fire {@code repaint()} or a
+     * {@code whenDone} callback against a component that has been removed.
+     */
+    public void stopAnimation() {
+        stopAnim();
+    }
+
     private void stopAnim() {
         if (animTimer != null) {
             animTimer.stop();
