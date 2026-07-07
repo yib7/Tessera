@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
 /**
@@ -68,19 +69,48 @@ public final class Settings {
         return settings;
     }
 
-    /** Persist preferences. Failures are surfaced as unchecked so callers can
-     *  choose to ignore them; settings are not load-bearing for play. */
+    /**
+     * Persist preferences using a write-to-temp-then-atomic-rename so a failure
+     * mid-write can never leave a half-written {@code settings.properties} that
+     * would be discarded as corrupt on the next launch. The existing file (if
+     * any) is left untouched until the new one is complete. Failures are surfaced
+     * as unchecked so callers can warn the user; settings are not load-bearing
+     * for play, so a caller may also choose to ignore them.
+     */
     public void save() {
         Properties props = new Properties();
         props.setProperty(KEY_SIZE, boardSize.label());
         props.setProperty(KEY_THEME, tileTheme.displayName());
         props.setProperty(KEY_SOUND, Boolean.toString(soundEnabled));
         Path path = DataPaths.dataDir().resolve(FILE_NAME);
+        Path tmp = null;
         try {
             DataPaths.ensureDataDir();
-            props.store(Files.newBufferedWriter(path), "Tessera settings");
+            tmp = Files.createTempFile(path.getParent(), FILE_NAME, ".tmp");
+            try (var writer = Files.newBufferedWriter(tmp)) {
+                props.store(writer, "Tessera settings");
+            }
+            // Replace the live file only once the temp file is fully written.
+            try {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException atomicUnsupported) {
+                // Some filesystems reject ATOMIC_MOVE across the same directory;
+                // fall back to a plain replace, which is still all-or-nothing at
+                // the byte level compared with writing the target in place.
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+            tmp = null;
         } catch (IOException e) {
             throw new UncheckedIOException("Could not save settings to " + path, e);
+        } finally {
+            if (tmp != null) {
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (IOException ignored) {
+                    // Best-effort cleanup of the orphaned temp file.
+                }
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import tessera.controller.Navigator;
@@ -113,9 +114,14 @@ public final class SettingsPanel extends JPanel {
         sound.setEnabled(settings.soundEnabled());
         try {
             settings.save();
-        } catch (RuntimeException ignored) {
-            // Persisting preferences is best-effort; the in-memory change still
-            // applies for this session.
+        } catch (RuntimeException e) {
+            // Persisting preferences is best-effort: the in-memory change still
+            // applies for this session, but the player should know it will not
+            // survive a restart rather than have the failure vanish silently.
+            JOptionPane.showMessageDialog(this,
+                    "Your settings could not be saved to disk, so they will not "
+                            + "persist after you close Tessera.\n\n" + e.getMessage(),
+                    "Settings not saved", JOptionPane.WARNING_MESSAGE);
         }
         if (onSaved != null) {
             onSaved.run();
