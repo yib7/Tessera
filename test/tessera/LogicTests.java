@@ -43,6 +43,7 @@ public final class LogicTests {
         testLeaderboardRanksByScore();
         testControllerFullPlaythrough();
         testPreviewBlocksInput();
+        testRapidClicksDuringTurn();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -212,6 +213,137 @@ public final class LogicTests {
         controller.onTileClicked(0, 0);
         check("a click after the memorize phase reveals the tile",
                 board.tileAt(0, 0).isFaceUp());
+    }
+
+    /**
+     * The turn state machine must ignore extra clicks that arrive while a turn
+     * is mid-resolution (the {@code locked} guard) and clicks on tiles that are
+     * already up or matched. In the real UI these arrive as rapid taps during
+     * the flip animation; here we reproduce them by holding the second-flip
+     * completion callback open so the controller stays locked, then firing more
+     * clicks and asserting they are swallowed.
+     */
+    private static void testRapidClicksDuringTurn() {
+        Board board = new Board(BoardSize.EASY, TileTheme.LETTERS, new Random(7));
+        GameSession session = new GameSession(BoardSize.EASY, TileTheme.LETTERS, board);
+        DeferredView view = new DeferredView();
+        GameController controller = new GameController(session, view);
+
+        // Find the matching partner of (0,0). Using a matching pair keeps the
+        // turn resolution synchronous (handleMatch runs no timer), so the test
+        // does not depend on the mismatch pause Timer.
+        int[] first = {0, 0};
+        int[] second = null;
+        String firstFace = board.tileAt(0, 0).face();
+        outer:
+        for (int r = 0; r < board.rows(); r++) {
+            for (int c = 0; c < board.cols(); c++) {
+                if ((r != 0 || c != 0) && board.tileAt(r, c).face().equals(firstFace)) {
+                    second = new int[] {r, c};
+                    break outer;
+                }
+            }
+        }
+
+        // Reveal the first tile (resolves immediately: no callback deferred).
+        controller.onTileClicked(first[0], first[1]);
+        check("first reveal turns the tile face up",
+                board.tileAt(first[0], first[1]).isFaceUp());
+
+        // Clicking the same face-up tile again is a no-op (turn count unchanged).
+        int turnsBefore = session.turns();
+        controller.onTileClicked(first[0], first[1]);
+        check("clicking an already-face-up tile is ignored",
+                session.turns() == turnsBefore);
+
+        // Reveal the second tile. DeferredView withholds the flipUp callback, so
+        // the controller is now locked awaiting turn resolution.
+        controller.onTileClicked(second[0], second[1]);
+        check("controller is locked while a turn resolves", view.hasPending());
+
+        // A third distinct tile clicked during the lock must be swallowed: it
+        // should not flip and must not advance the turn count.
+        int[] third = null;
+        for (int r = 0; r < board.rows() && third == null; r++) {
+            for (int c = 0; c < board.cols(); c++) {
+                if ((r != first[0] || c != first[1])
+                        && (r != second[0] || c != second[1])) {
+                    third = new int[] {r, c};
+                    break;
+                }
+            }
+        }
+        int turnsDuringLock = session.turns();
+        controller.onTileClicked(third[0], third[1]);
+        check("a click while locked does not flip a third tile",
+                !board.tileAt(third[0], third[1]).isFaceUp());
+        check("a click while locked does not advance the turn count",
+                session.turns() == turnsDuringLock);
+
+        // Release the held callback so the turn resolves (a match) and unlocks.
+        view.releasePending();
+        check("after the turn resolves, play accepts a new click",
+                acceptsClick(controller, board, third));
+    }
+
+    /** True if clicking the given cell now reveals it (i.e. input is accepted). */
+    private static boolean acceptsClick(GameController controller, Board board,
+            int[] cell) {
+        controller.onTileClicked(cell[0], cell[1]);
+        return board.tileAt(cell[0], cell[1]).isFaceUp();
+    }
+
+    /**
+     * A GameView that resolves flips immediately EXCEPT it withholds the callback
+     * of the most recent flipUp, so a test can hold the controller in its locked
+     * state and then release it on demand.
+     */
+    private static final class DeferredView implements GameView {
+        private Runnable pending;
+
+        boolean hasPending() {
+            return pending != null;
+        }
+
+        void releasePending() {
+            Runnable r = pending;
+            pending = null;
+            if (r != null) {
+                r.run();
+            }
+        }
+
+        @Override
+        public void flipUp(int row, int col, Runnable whenDone) {
+            // The second reveal of a turn passes a non-null callback; hold it so
+            // the controller stays locked until the test releases it.
+            if (whenDone != null) {
+                pending = whenDone;
+            }
+        }
+
+        @Override
+        public void flipDown(int row, int col, Runnable whenDone) {
+            if (whenDone != null) {
+                whenDone.run();
+            }
+        }
+
+        @Override
+        public void markMatched(int row, int col) {
+        }
+
+        @Override
+        public void setBoardInteractive(boolean interactive) {
+        }
+
+        @Override
+        public void updateHud() {
+        }
+
+        @Override
+        public void onWin() {
+        }
     }
 
     /** A GameView that runs flip callbacks immediately, so the turn resolves
