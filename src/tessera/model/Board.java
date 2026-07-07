@@ -32,6 +32,9 @@ public final class Board {
     }
 
     private void deal(BoardSize size, TileTheme theme, Random random) {
+        if (theme == null) {
+            throw new IllegalArgumentException("theme must not be null");
+        }
         int pairs = size.pairCount();
         List<String> faces = theme.faces(pairs);
 
