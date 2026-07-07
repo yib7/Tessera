@@ -18,6 +18,12 @@ import java.util.List;
  * any deviation. This version tolerates a missing file (starts empty), skips
  * malformed lines instead of failing, ranks by score with turns then time as
  * tie-breakers, and supports a real top-N table per size.
+ *
+ * <p><b>Threading:</b> this class is not synchronised. It is only ever touched
+ * from the Swing event dispatch thread (submits from the results screen, reads
+ * from the leaderboard panel), so {@link #load()}'s {@code clear()}-then-refill
+ * of {@link #entries} is safe. Calling any method off the EDT would race on that
+ * list and is not supported; add synchronisation before doing so.
  */
 public final class Leaderboard {
 
@@ -95,9 +101,12 @@ public final class Leaderboard {
         trimAllSizes();
         save();
 
+        // Match by value, not identity: ScoreEntry is a record with value-based
+        // equals(), so this keeps working if topFor() ever returns copies rather
+        // than the exact instance that was submitted.
         List<ScoreEntry> top = topFor(entry.size());
         for (int i = 0; i < top.size(); i++) {
-            if (top.get(i) == entry) {
+            if (top.get(i).equals(entry)) {
                 return i + 1;
             }
         }
