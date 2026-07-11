@@ -9,6 +9,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
@@ -41,6 +45,7 @@ public final class TileButton extends JComponent {
     private boolean showingFace = false;
     private boolean matched = false;
     private boolean hovered = false;
+    private boolean focused = false;
     private boolean interactive = true;
 
     private Flip flip = Flip.NONE;
@@ -53,9 +58,11 @@ public final class TileButton extends JComponent {
         this.col = col;
         this.accent = accent;
         setOpaque(false);
+        setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         setPreferredSize(new Dimension(72, 72));
         installMouse();
+        installKeyboard();
     }
 
     public int row() {
@@ -179,6 +186,37 @@ public final class TileButton extends JComponent {
         });
     }
 
+    /**
+     * Make the tile keyboard-operable: a focus ring (reusing the hover paint) so
+     * the focused tile is visible, and Enter/Space to flip it, mirroring the
+     * mouse-press activation. GamePanel wires the arrow keys for grid traversal.
+     */
+    private void installKeyboard() {
+        addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                focused = true;
+                repaint();
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                focused = false;
+                repaint();
+            }
+        });
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int k = e.getKeyCode();
+                if ((k == KeyEvent.VK_SPACE || k == KeyEvent.VK_ENTER)
+                        && interactive && onClick != null) {
+                    onClick.run();
+                }
+            }
+        });
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
@@ -208,7 +246,7 @@ public final class TileButton extends JComponent {
             g2.fillRoundRect(x, 0, squashedWidth, h, arc, arc);
             drawGlyph(g2, w, h, accent.darker());
         } else {
-            Color back = hovered && interactive ? Theme.TILE_BACK_HOVER : Theme.TILE_BACK;
+            Color back = (hovered || focused) && interactive ? Theme.TILE_BACK_HOVER : Theme.TILE_BACK;
             g2.setColor(back);
             g2.fillRoundRect(x, 0, squashedWidth, h, arc, arc);
             // A subtle inset diamond as the card back motif, scaled with the squash.
