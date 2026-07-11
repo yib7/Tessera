@@ -49,8 +49,12 @@ public final class Settings {
 
     /** Load preferences, falling back to defaults on any read problem. */
     public static Settings load() {
+        return load(DataPaths.dataDir().resolve(FILE_NAME));
+    }
+
+    /** Load preferences from a specific file (test seam), defaults on any read problem. */
+    public static Settings load(Path path) {
         Settings settings = new Settings();
-        Path path = DataPaths.dataDir().resolve(FILE_NAME);
         if (!Files.exists(path)) {
             return settings;
         }
@@ -84,7 +88,11 @@ public final class Settings {
      * {@code #} comments, so the format round-trips.
      */
     public void save() {
-        Path path = DataPaths.dataDir().resolve(FILE_NAME);
+        save(DataPaths.dataDir().resolve(FILE_NAME));
+    }
+
+    /** Persist preferences to a specific file (test seam). */
+    public void save(Path path) {
         List<String> lines = List.of(
                 "# Tessera settings",
                 KEY_SIZE + "=" + boardSize.label(),

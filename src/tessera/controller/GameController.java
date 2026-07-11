@@ -31,11 +31,43 @@ public final class GameController {
     private boolean locked = false; // input ignored during animations / pause
     private boolean paused = false;
     private boolean previewActive = false; // the pre-game memorize phase
-    private Timer pendingMismatch; // the scheduled flip-back, while one is pending
+    private final MismatchTimer mismatchTimer;
+
+    /**
+     * How the controller waits out the mismatch pause before flipping the two
+     * mismatched tiles back. The running game uses a Swing Timer; tests inject a
+     * synchronous runner so the mismatch branch is exercisable headlessly.
+     */
+    public interface MismatchTimer {
+        /** Schedule flipBack to run after the mismatch pause. */
+        void schedule(Runnable flipBack);
+        /** Cancel a scheduled flipBack if it has not yet run. */
+        void cancel();
+    }
+
+    /** Production mismatch pause: a one-shot Swing Timer. */
+    private static final class SwingMismatchTimer implements MismatchTimer {
+        private final int delayMs;
+        private Timer timer;
+        SwingMismatchTimer(int delayMs) { this.delayMs = delayMs; }
+        @Override public void schedule(Runnable flipBack) {
+            timer = new Timer(delayMs, e -> { timer = null; flipBack.run(); });
+            timer.setRepeats(false);
+            timer.start();
+        }
+        @Override public void cancel() {
+            if (timer != null) { timer.stop(); timer = null; }
+        }
+    }
 
     public GameController(GameSession session, GameView view) {
+        this(session, view, new SwingMismatchTimer(MISMATCH_PAUSE_MS));
+    }
+
+    public GameController(GameSession session, GameView view, MismatchTimer mismatchTimer) {
         this.session = session;
         this.view = view;
+        this.mismatchTimer = mismatchTimer;
     }
 
     public GameSession session() {
@@ -163,8 +195,7 @@ public final class GameController {
         final int fRow = firstRow;
         final int fCol = firstCol;
 
-        pendingMismatch = new Timer(MISMATCH_PAUSE_MS, e -> {
-            pendingMismatch = null; // it has fired
+        mismatchTimer.schedule(() -> {
             first.setFaceUp(false);
             second.setFaceUp(false);
             view.flipDown(fRow, fCol, null);
@@ -176,8 +207,6 @@ public final class GameController {
                 }
             });
         });
-        pendingMismatch.setRepeats(false);
-        pendingMismatch.start();
     }
 
     /**
@@ -186,10 +215,7 @@ public final class GameController {
      * cannot fire the timer against a dead board.
      */
     public void cancelPending() {
-        if (pendingMismatch != null) {
-            pendingMismatch.stop();
-            pendingMismatch = null;
-        }
+        mismatchTimer.cancel();
     }
 
     private void clearTurn() {
