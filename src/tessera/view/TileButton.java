@@ -13,6 +13,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
 import javax.swing.JComponent;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
@@ -167,8 +168,11 @@ public final class TileButton extends JComponent {
             }
 
             @Override
-            public void mouseClicked(MouseEvent e) {
-                if (interactive && onClick != null) {
+            public void mousePressed(MouseEvent e) {
+                // Fire on press rather than click: mouseClicked only fires when
+                // press and release land on the same pixel, so a 1-2 px hand
+                // tremor between the two would silently drop the input.
+                if (interactive && onClick != null && SwingUtilities.isLeftMouseButton(e)) {
                     onClick.run();
                 }
             }

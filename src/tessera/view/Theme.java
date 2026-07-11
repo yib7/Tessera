@@ -3,7 +3,9 @@ package tessera.view;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import javax.swing.UIManager;
@@ -62,10 +64,13 @@ public final class Theme {
         return new Font(FONT_FAMILY, Font.BOLD, 18);
     }
 
-    /** Tile glyph font, sized to the tile so big boards still read. */
+    private static final Map<Integer, Font> TILE_FONTS = new HashMap<>();
+
+    /** Tile glyph font, sized to the tile so big boards still read. Cached by
+     *  computed size; called on the EDT so a plain HashMap is safe. */
     public static Font tileFont(int tileSize) {
         int size = Math.max(14, Math.min(48, (int) (tileSize * 0.45)));
-        return new Font(FONT_FAMILY, Font.BOLD, size);
+        return TILE_FONTS.computeIfAbsent(size, s -> new Font(FONT_FAMILY, Font.BOLD, s));
     }
 
     /** Convert a packed 0xRRGGBB int from a TileTheme into a Color. */

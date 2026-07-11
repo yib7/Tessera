@@ -32,9 +32,6 @@ import tessera.model.Tile;
 @SuppressWarnings("serial") // Swing component; never serialized.
 public final class GamePanel extends JPanel implements GameView {
 
-    /** How long the board stays face up for the player to memorize, in seconds. */
-    private static final int PREVIEW_SECONDS = 5;
-
     private final Navigator navigator;
     private final GameSession session;
     private final GameController controller;
@@ -190,6 +187,15 @@ public final class GamePanel extends JPanel implements GameView {
     // Memorize phase ---------------------------------------------------------
 
     /**
+     * How long the board stays face up for the player to memorize, in seconds,
+     * scaled by board size so a big board gets a fair look and a small one is
+     * not sluggish (EASY 3s, NORMAL 4s, HARD 9s).
+     */
+    private int previewSeconds() {
+        return Math.max(3, session.size().cellCount() / 6);
+    }
+
+    /**
      * Open every tile face up and run a short countdown before the game begins,
      * so the player gets a fair look at the board first. Input and pause stay
      * disabled until the countdown ends and the tiles flip back down. The clock
@@ -205,7 +211,7 @@ public final class GamePanel extends JPanel implements GameView {
                 tile.setStateImmediate(true, false);
             }
         }
-        previewRemaining = PREVIEW_SECONDS;
+        previewRemaining = previewSeconds();
         showCountdown(previewRemaining);
 
         previewTimer = new Timer(1000, e -> tickPreview());
