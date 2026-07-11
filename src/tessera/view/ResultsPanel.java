@@ -54,7 +54,9 @@ public final class ResultsPanel extends JPanel {
         column.add(stats);
         column.add(Box.createRigidArea(new Dimension(0, 28)));
 
-        boolean qualifies = leaderboard.qualifies(session.size(), session.score());
+        ScoreEntry candidate = new ScoreEntry("", session.size(),
+                session.score(), session.turns(), session.elapsedMillis());
+        boolean qualifies = leaderboard.qualifies(candidate);
         if (qualifies) {
             addNameEntry(navigator, session, leaderboard, column);
         } else {
@@ -101,6 +103,12 @@ public final class ResultsPanel extends JPanel {
         skip.setAlignmentX(Component.CENTER_ALIGNMENT);
         skip.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
 
+        // Starts a fresh game without saving this run, mirroring Skip's discard
+        // semantics but heading to a new game instead of the menu.
+        JButton again = UiFactory.secondaryButton("Play again");
+        again.setAlignmentX(Component.CENTER_ALIGNMENT);
+        again.addActionListener(e -> navigator.startGame());
+
         column.add(prompt);
         column.add(Box.createRigidArea(new Dimension(0, 10)));
         column.add(nameField);
@@ -110,6 +118,8 @@ public final class ResultsPanel extends JPanel {
         buttons.setOpaque(false);
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
         buttons.add(skip);
+        buttons.add(Box.createRigidArea(new Dimension(12, 0)));
+        buttons.add(again);
         buttons.add(Box.createRigidArea(new Dimension(12, 0)));
         buttons.add(submit);
         buttons.setAlignmentX(Component.CENTER_ALIGNMENT);

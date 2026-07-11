@@ -81,13 +81,16 @@ public final class Leaderboard {
         return filtered;
     }
 
-    /** True if the given score would land on the board for its size. */
-    public boolean qualifies(BoardSize size, int score) {
-        List<ScoreEntry> top = topFor(size);
-        if (top.size() < MAX_PER_SIZE) {
-            return true;
-        }
-        return score > top.get(top.size() - 1).score();
+    /**
+     * True if the given candidate would land on the board for its size. Uses the
+     * same {@link #RANK} ordering as ranking, so a run tied on score but with
+     * fewer turns or a faster time than the current last-place entry correctly
+     * qualifies.
+     */
+    public boolean qualifies(ScoreEntry candidate) {
+        List<ScoreEntry> top = topFor(candidate.size());
+        return top.size() < MAX_PER_SIZE
+                || RANK.compare(candidate, top.get(top.size() - 1)) < 0;
     }
 
     /**
