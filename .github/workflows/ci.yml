@@ -21,4 +21,5 @@ jobs:
       - name: Build runnable jar
         run: |
           javac -d bin $(find src -name "*.java")
+          mkdir -p dist
           jar --create --file dist/Tessera.jar --main-class tessera.Tessera -C bin .

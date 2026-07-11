@@ -1,10 +1,9 @@
 package tessera.model;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -56,8 +55,8 @@ public final class Settings {
             return settings;
         }
         Properties props = new Properties();
-        try {
-            props.load(Files.newBufferedReader(path));
+        try (var reader = Files.newBufferedReader(path)) {
+            props.load(reader);
             settings.boardSize = BoardSize.fromLabel(props.getProperty(KEY_SIZE));
             settings.tileTheme = TileTheme.fromName(props.getProperty(KEY_THEME));
             settings.soundEnabled = Boolean.parseBoolean(
@@ -70,47 +69,27 @@ public final class Settings {
     }
 
     /**
-     * Persist preferences using a write-to-temp-then-atomic-rename so a failure
-     * mid-write can never leave a half-written {@code settings.properties} that
-     * would be discarded as corrupt on the next launch. The existing file (if
-     * any) is left untouched until the new one is complete. Failures are surfaced
-     * as unchecked so callers can warn the user; settings are not load-bearing
-     * for play, so a caller may also choose to ignore them.
+     * Persist preferences via {@link DataPaths#writeAtomically}, which uses a
+     * write-to-temp-then-atomic-rename so a failure mid-write can never leave a
+     * half-written {@code settings.properties} that would be discarded as corrupt
+     * on the next launch. The existing file (if any) is left untouched until the
+     * new one is complete. Failures are surfaced as unchecked so callers can warn
+     * the user; settings are not load-bearing for play, so a caller may also
+     * choose to ignore them.
+     *
+     * <p>The content is built as a plain {@code key=value} list (with a leading
+     * comment) rather than {@link Properties#store}, so the leaderboard and
+     * settings share the one atomic writer. {@link #load()} parses this with
+     * {@link Properties#load}, which reads {@code key=value} lines and ignores
+     * {@code #} comments, so the format round-trips.
      */
     public void save() {
-        Properties props = new Properties();
-        props.setProperty(KEY_SIZE, boardSize.label());
-        props.setProperty(KEY_THEME, tileTheme.displayName());
-        props.setProperty(KEY_SOUND, Boolean.toString(soundEnabled));
         Path path = DataPaths.dataDir().resolve(FILE_NAME);
-        Path tmp = null;
-        try {
-            DataPaths.ensureDataDir();
-            tmp = Files.createTempFile(path.getParent(), FILE_NAME, ".tmp");
-            try (var writer = Files.newBufferedWriter(tmp)) {
-                props.store(writer, "Tessera settings");
-            }
-            // Replace the live file only once the temp file is fully written.
-            try {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicUnsupported) {
-                // Some filesystems reject ATOMIC_MOVE across the same directory;
-                // fall back to a plain replace, which is still all-or-nothing at
-                // the byte level compared with writing the target in place.
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
-            }
-            tmp = null;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not save settings to " + path, e);
-        } finally {
-            if (tmp != null) {
-                try {
-                    Files.deleteIfExists(tmp);
-                } catch (IOException ignored) {
-                    // Best-effort cleanup of the orphaned temp file.
-                }
-            }
-        }
+        List<String> lines = List.of(
+                "# Tessera settings",
+                KEY_SIZE + "=" + boardSize.label(),
+                KEY_THEME + "=" + tileTheme.displayName(),
+                KEY_SOUND + "=" + Boolean.toString(soundEnabled));
+        DataPaths.writeAtomically(path, lines);
     }
 }

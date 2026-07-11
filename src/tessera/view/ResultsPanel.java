@@ -9,6 +9,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
@@ -81,10 +82,15 @@ public final class ResultsPanel extends JPanel {
             try {
                 leaderboard.submit(new ScoreEntry(name, session.size(),
                         session.score(), session.turns(), session.elapsedMillis()));
-            } catch (RuntimeException ignored) {
-                // Persisting the score is best-effort. The entry is already on the
-                // in-memory board, so a disk write failure should not break the
-                // flow: show the leaderboard anyway, just without it being saved.
+            } catch (RuntimeException e) {
+                // The entry is already on the in-memory board, so the leaderboard
+                // screen will still show it this session; but the disk write
+                // failed, so warn the player it will not survive a restart rather
+                // than let the failure vanish silently (mirrors SettingsPanel).
+                JOptionPane.showMessageDialog(this,
+                        "Your score could not be saved to disk, so it will not "
+                                + "persist after you close Tessera.\n\n" + e.getMessage(),
+                        "Score not saved", JOptionPane.WARNING_MESSAGE);
             }
             navigator.show(Navigator.Screen.LEADERBOARD);
         };

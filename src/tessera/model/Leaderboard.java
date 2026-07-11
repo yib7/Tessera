@@ -1,7 +1,6 @@
 package tessera.model;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -123,18 +122,16 @@ public final class Leaderboard {
     }
 
     private void save() {
-        try {
-            DataPaths.ensureDataDir();
-            List<String> lines = new ArrayList<>();
-            lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis)");
-            for (BoardSize size : BoardSize.values()) {
-                for (ScoreEntry entry : topFor(size)) {
-                    lines.add(entry.toLine());
-                }
+        List<String> lines = new ArrayList<>();
+        lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis)");
+        for (BoardSize size : BoardSize.values()) {
+            for (ScoreEntry entry : topFor(size)) {
+                lines.add(entry.toLine());
             }
-            Files.write(file, lines, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not save leaderboard to " + file, e);
         }
+        // Delegate to the shared atomic writer so the leaderboard and settings
+        // share one durable write path and cannot drift. Throws
+        // UncheckedIOException on failure, which submit()'s callers surface.
+        DataPaths.writeAtomically(file, lines);
     }
 }
