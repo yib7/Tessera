@@ -19,14 +19,17 @@ sessions.
 - Three board sizes: Easy (3x4), Normal (4x7), Hard (7x8).
 - Three tile themes: letters, numbers, and geometric symbols. Faces are drawn
   in code, so the game bundles no image files.
-- A memorize phase before each round: the whole board opens face up for a few
-  seconds with a countdown, then flips down to start play, so a run rewards
-  recall rather than blind luck.
+- A memorize phase before each round: the whole board opens face up with a
+  countdown that scales with board size, then flips down to start play, so a
+  run rewards recall rather than blind luck.
 - A scoring system that goes beyond raw turn count. Score rewards matched pairs,
   penalizes mismatched flips, and adds a speed bonus that decays over time, so a
   fast clean game beats a slow lucky one.
 - A live HUD showing turns, score, and elapsed time.
-- Pause and resume that stops the clock.
+- Pause and resume that stops the clock and hides the board behind a cover, so
+  pausing mid-turn cannot be used to study a revealed tile.
+- Full keyboard play: arrow keys move focus across the tile grid, Enter or
+  Space flips the focused tile, and Escape toggles pause.
 - A flip animation on every tile, drawn with a horizontal squash on a Swing
   timer.
 - Optional sound cues, synthesized at runtime (no audio files bundled).
