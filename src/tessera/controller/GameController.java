@@ -31,6 +31,7 @@ public final class GameController {
     private boolean locked = false; // input ignored during animations / pause
     private boolean paused = false;
     private boolean previewActive = false; // the pre-game memorize phase
+    private Timer pendingMismatch; // the scheduled flip-back, while one is pending
 
     public GameController(GameSession session, GameView view) {
         this.session = session;
@@ -162,7 +163,8 @@ public final class GameController {
         final int fRow = firstRow;
         final int fCol = firstCol;
 
-        Timer pause = new Timer(MISMATCH_PAUSE_MS, e -> {
+        pendingMismatch = new Timer(MISMATCH_PAUSE_MS, e -> {
+            pendingMismatch = null; // it has fired
             first.setFaceUp(false);
             second.setFaceUp(false);
             view.flipDown(fRow, fCol, null);
@@ -174,8 +176,20 @@ public final class GameController {
                 }
             });
         });
-        pause.setRepeats(false);
-        pause.start();
+        pendingMismatch.setRepeats(false);
+        pendingMismatch.start();
+    }
+
+    /**
+     * Cancel a scheduled mismatch flip-back, if one is pending. The view's
+     * teardown calls this so a panel that is torn down during the 850ms pause
+     * cannot fire the timer against a dead board.
+     */
+    public void cancelPending() {
+        if (pendingMismatch != null) {
+            pendingMismatch.stop();
+            pendingMismatch = null;
+        }
     }
 
     private void clearTurn() {

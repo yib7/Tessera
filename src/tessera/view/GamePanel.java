@@ -319,6 +319,9 @@ public final class GamePanel extends JPanel implements GameView {
         if (previewTimer != null) {
             previewTimer.stop();
         }
+        // Cancel any scheduled mismatch flip-back so it cannot fire against this
+        // dead board after teardown (the timer lives on the controller).
+        controller.cancelPending();
         for (TileButton[] rowTiles : tiles) {
             for (TileButton tile : rowTiles) {
                 tile.stopAnimation();
