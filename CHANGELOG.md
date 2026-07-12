@@ -3,7 +3,7 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
-## Unreleased
+## v3.2.0 - 2026-07-12
 
 ### Added
 
