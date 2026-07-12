@@ -1,7 +1,6 @@
 package tessera.model;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,13 +81,16 @@ public final class Leaderboard {
         return filtered;
     }
 
-    /** True if the given score would land on the board for its size. */
-    public boolean qualifies(BoardSize size, int score) {
-        List<ScoreEntry> top = topFor(size);
-        if (top.size() < MAX_PER_SIZE) {
-            return true;
-        }
-        return score > top.get(top.size() - 1).score();
+    /**
+     * True if the given candidate would land on the board for its size. Uses the
+     * same {@link #RANK} ordering as ranking, so a run tied on score but with
+     * fewer turns or a faster time than the current last-place entry correctly
+     * qualifies.
+     */
+    public boolean qualifies(ScoreEntry candidate) {
+        List<ScoreEntry> top = topFor(candidate.size());
+        return top.size() < MAX_PER_SIZE
+                || RANK.compare(candidate, top.get(top.size() - 1)) < 0;
     }
 
     /**
@@ -123,18 +125,16 @@ public final class Leaderboard {
     }
 
     private void save() {
-        try {
-            DataPaths.ensureDataDir();
-            List<String> lines = new ArrayList<>();
-            lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis)");
-            for (BoardSize size : BoardSize.values()) {
-                for (ScoreEntry entry : topFor(size)) {
-                    lines.add(entry.toLine());
-                }
+        List<String> lines = new ArrayList<>();
+        lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis)");
+        for (BoardSize size : BoardSize.values()) {
+            for (ScoreEntry entry : topFor(size)) {
+                lines.add(entry.toLine());
             }
-            Files.write(file, lines, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not save leaderboard to " + file, e);
         }
+        // Delegate to the shared atomic writer so the leaderboard and settings
+        // share one durable write path and cannot drift. Throws
+        // UncheckedIOException on failure, which submit()'s callers surface.
+        DataPaths.writeAtomically(file, lines);
     }
 }

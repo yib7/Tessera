@@ -48,11 +48,17 @@ public record ScoreEntry(String name, BoardSize size, int score, int turns, long
             return null;
         }
         try {
-            BoardSize size = BoardSize.fromLabel(parts[0]);
+            BoardSize size = BoardSize.tryFromLabel(parts[0]);
+            if (size == null) {
+                return null;
+            }
             String name = parts[1];
             int score = Integer.parseInt(parts[2].trim());
             int turns = Integer.parseInt(parts[3].trim());
             long time = Long.parseLong(parts[4].trim());
+            if (score < 0 || turns < 0 || time < 0) {
+                return null;
+            }
             return new ScoreEntry(name, size, score, turns, time);
         } catch (NumberFormatException e) {
             return null;

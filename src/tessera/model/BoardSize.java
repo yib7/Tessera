@@ -46,8 +46,12 @@ public enum BoardSize {
         return cellCount() / 2;
     }
 
-    /** Resolve a saved label back to a size, falling back to NORMAL. */
-    public static BoardSize fromLabel(String label) {
+    /**
+     * Resolve a saved label back to a size, or null if none matches
+     * (case-insensitive, trimmed). Callers that need to reject an unknown label
+     * use this; callers that want a safe default use {@link #fromLabel}.
+     */
+    public static BoardSize tryFromLabel(String label) {
         if (label != null) {
             for (BoardSize size : values()) {
                 if (size.label.equalsIgnoreCase(label.trim())) {
@@ -55,6 +59,12 @@ public enum BoardSize {
                 }
             }
         }
-        return NORMAL;
+        return null;
+    }
+
+    /** Resolve a saved label back to a size, falling back to NORMAL. */
+    public static BoardSize fromLabel(String label) {
+        BoardSize size = tryFromLabel(label);
+        return size != null ? size : NORMAL;
     }
 }

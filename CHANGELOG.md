@@ -3,6 +3,44 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- The board hides behind a cover panel while paused, so pausing mid-turn can no
+  longer be used to study a revealed tile with the clock frozen.
+- Full keyboard play: arrow keys move focus across the tile grid, Enter or
+  Space flips the focused tile, and Escape toggles pause.
+- The memorize countdown now scales with board size instead of a flat five
+  seconds.
+- A "Play again" button on the results screen when a run qualifies for the
+  leaderboard.
+- A warning dialog when a score fails to save to disk, matching the existing
+  settings-save warning.
+
+### Fixed
+
+- CI's jar-packaging step now creates `dist/` before writing to it.
+- Leaderboard and settings saves both go through one shared write-temp-then-
+  atomic-rename helper (`DataPaths.writeAtomically`), removing a data-loss
+  window on a crash or full disk mid-write.
+- `Leaderboard.qualifies` now uses the same score/turns/time ordering as
+  ranking, so a run that ties the last qualifying score with fewer turns or a
+  faster time is offered a name entry instead of being silently dropped.
+- Corrupt leaderboard lines with an unrecognized board size or a negative
+  score, turn count, or time are now dropped instead of being re-bucketed
+  onto the Normal board.
+- Settings tile faces and combo boxes on the settings screen show display
+  names ("Easy", "Numbers") instead of raw enum constants.
+- Tile clicks now register on mouse press instead of mouse click, so a small
+  hand tremor between press and release no longer swallows the input.
+- Stale `ResultsPanel` instances are removed from the card container instead
+  of accumulating for the life of the process.
+- The mismatch-resolution timer is now owned by the controller and cancelled
+  on teardown, instead of continuing to run against a discarded game.
+- The game clock uses a monotonic time source instead of wall-clock time, so
+  it can no longer be corrupted by a system clock adjustment mid-game.
+
 ## v3.1.0 - 2026-06-27
 
 ### Added

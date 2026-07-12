@@ -18,8 +18,10 @@ public final class GameSession {
     private int mismatches;
 
     // Clock state. Time only advances while the game is running and not paused.
-    private long startMillis;
-    private long accumulatedMillis;
+    // Timed off a monotonic nanoTime source, so it is immune to wall-clock jumps
+    // (NTP correction, manual clock changes, DST-adjacent adjustments).
+    private long startNanos;
+    private long accumulatedNanos;
     private boolean clockRunning;
     private boolean finished;
 
@@ -60,7 +62,7 @@ public final class GameSession {
     /** Start the clock on the player's first flip. No-op if already running. */
     public void startClock() {
         if (!clockRunning && !finished) {
-            startMillis = System.currentTimeMillis();
+            startNanos = System.nanoTime();
             clockRunning = true;
         }
     }
@@ -72,7 +74,7 @@ public final class GameSession {
     /** Fold the live segment into the accumulated total and stop the clock. */
     public void pauseClock() {
         if (clockRunning) {
-            accumulatedMillis += System.currentTimeMillis() - startMillis;
+            accumulatedNanos += System.nanoTime() - startNanos;
             clockRunning = false;
         }
     }
@@ -80,15 +82,15 @@ public final class GameSession {
     /** Resume after a pause. */
     public void resumeClock() {
         if (!clockRunning && !finished) {
-            startMillis = System.currentTimeMillis();
+            startNanos = System.nanoTime();
             clockRunning = true;
         }
     }
 
     /** Total elapsed play time, excluding any paused stretches. */
     public long elapsedMillis() {
-        long live = clockRunning ? System.currentTimeMillis() - startMillis : 0;
-        return accumulatedMillis + live;
+        long liveNanos = clockRunning ? System.nanoTime() - startNanos : 0;
+        return (accumulatedNanos + liveNanos) / 1_000_000L;
     }
 
     public void recordMatch() {

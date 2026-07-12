@@ -7,10 +7,12 @@ import java.awt.GridBagLayout;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
@@ -44,6 +46,36 @@ public final class SettingsPanel extends JPanel {
 
         setLayout(new GridBagLayout());
         setBackground(Theme.BACKGROUND);
+
+        // The combo boxes hold enum constants, whose toString() is the raw name
+        // ("EASY", "DIGITS"). Render the same display labels the rest of the app
+        // uses so the settings screen reads "Easy" / "Numbers", not "EASY" /
+        // "DIGITS". The class-level @SuppressWarnings("serial") covers these
+        // anonymous DefaultListCellRenderer subclasses.
+        sizeBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected,
+                        cellHasFocus);
+                if (value instanceof BoardSize bs) {
+                    setText(bs.label());
+                }
+                return this;
+            }
+        });
+        themeBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected,
+                        cellHasFocus);
+                if (value instanceof TileTheme t) {
+                    setText(t.displayName());
+                }
+                return this;
+            }
+        });
 
         JPanel column = new JPanel();
         column.setOpaque(false);

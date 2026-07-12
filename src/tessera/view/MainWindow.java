@@ -78,17 +78,22 @@ public final class MainWindow extends JFrame implements Navigator {
         // name only replaces the CardLayout entry; the old panel stays attached
         // and keeps its clock Timer firing forever. Removing it fires its
         // removeNotify(), the single place that stops that panel's timers.
-        disposePreviousGamePanel();
+        disposePrevious(GamePanel.class);
 
         GamePanel gamePanel = new GamePanel(this, session, sound);
         root.add(gamePanel, Screen.GAME.name());
         cards.show(root, Screen.GAME.name());
     }
 
-    /** Remove any existing GamePanel so its removeNotify() stops its timers. */
-    private void disposePreviousGamePanel() {
+    /**
+     * Remove every {@code root} child of the given type. For {@link GamePanel}
+     * this fires each removed panel's removeNotify(), the single place that stops
+     * that panel's timers; for {@link ResultsPanel} it prevents stale panels
+     * pinning old sessions.
+     */
+    private void disposePrevious(Class<? extends Component> type) {
         for (Component child : root.getComponents()) {
-            if (child instanceof GamePanel) {
+            if (type.isInstance(child)) {
                 root.remove(child);
             }
         }
@@ -97,6 +102,9 @@ public final class MainWindow extends JFrame implements Navigator {
     @Override
     public void showResults(GameSession session) {
         ResultsPanel results = new ResultsPanel(this, session, leaderboard);
+        // Remove any prior ResultsPanel first; otherwise stale panels accumulate
+        // under this card name and pin old sessions for the life of the process.
+        disposePrevious(ResultsPanel.class);
         root.add(results, Screen.RESULTS.name());
         leaderboardPanel.showSize(session.size());
         cards.show(root, Screen.RESULTS.name());

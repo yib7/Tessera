@@ -16,6 +16,7 @@ import tessera.model.GameSession;
 import tessera.model.Leaderboard;
 import tessera.model.ScoreCalculator;
 import tessera.model.ScoreEntry;
+import tessera.model.Settings;
 import tessera.model.Tile;
 import tessera.model.TileTheme;
 
@@ -44,6 +45,11 @@ public final class LogicTests {
         testControllerFullPlaythrough();
         testPreviewBlocksInput();
         testRapidClicksDuringTurn();
+        testMismatchResolves();
+        testScoreEntrySanitizationAndRoundTrip();
+        testCorruptLinesRejected();
+        testQualifiesTieUsesRankOrder();
+        testSettingsRoundTrip();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -155,6 +161,119 @@ public final class LogicTests {
         check("leaderboard caps at five per size",
                 lb.topFor(BoardSize.HARD).size() == Leaderboard.MAX_PER_SIZE);
         Files.deleteIfExists(tmp);
+    }
+
+    /**
+     * {@link Leaderboard#qualifies} must use the same ordering as ranking, so a
+     * run that ties the last-place score but takes fewer turns still makes the cut
+     * (P2-1: the old strict {@code >} logic dropped it). Also: a strictly lower
+     * score is refused, a higher score qualifies, and any size whose board is not
+     * yet full always qualifies.
+     */
+    private static void testQualifiesTieUsesRankOrder() throws IOException {
+        Path tmp = Files.createTempFile("tessera-qualify", ".tsv");
+        Files.delete(tmp);
+        Leaderboard lb = new Leaderboard(tmp);
+        // Fill HARD with five entries all at score 1000 and equal time, differing
+        // only in turns (10..14), so the last-place incumbent has turns == 14.
+        for (int turns = 10; turns <= 14; turns++) {
+            lb.submit(new ScoreEntry("p" + turns, BoardSize.HARD, 1000, turns, 60_000));
+        }
+
+        check("a score-tying run with fewer turns qualifies (the P2-1 tie bug)",
+                lb.qualifies(new ScoreEntry("x", BoardSize.HARD, 1000, 13, 60_000)));
+        check("a strictly lower score does not qualify",
+                !lb.qualifies(new ScoreEntry("x", BoardSize.HARD, 999, 1, 1000)));
+        check("a higher score qualifies",
+                lb.qualifies(new ScoreEntry("x", BoardSize.HARD, 1001, 30, 90_000)));
+        check("a size whose board is not yet full always qualifies",
+                lb.qualifies(new ScoreEntry("x", BoardSize.EASY, 1, 99, 999_999)));
+
+        Files.deleteIfExists(tmp);
+    }
+
+    // --- score entry ---------------------------------------------------------
+
+    /**
+     * {@link ScoreEntry}'s compact constructor sanitises names (delimiter and
+     * newline stripping, 24-char truncation, "Anonymous" fallback), and a clean
+     * entry round-trips by value through {@code toLine}/{@code fromLine} (records
+     * have value-based equals).
+     */
+    private static void testScoreEntrySanitizationAndRoundTrip() {
+        check("an embedded tab in a name is replaced with a space",
+                new ScoreEntry("Ada\tLovelace", BoardSize.NORMAL, 100, 5, 1000)
+                        .name().equals("Ada Lovelace"));
+        check("an over-long name is truncated to 24 characters",
+                new ScoreEntry("A".repeat(30), BoardSize.NORMAL, 100, 5, 1000)
+                        .name().length() == 24);
+        check("a null name falls back to Anonymous",
+                new ScoreEntry(null, BoardSize.NORMAL, 100, 5, 1000)
+                        .name().equals("Anonymous"));
+        check("a blank name falls back to Anonymous",
+                new ScoreEntry("   ", BoardSize.NORMAL, 100, 5, 1000)
+                        .name().equals("Anonymous"));
+
+        ScoreEntry entry = new ScoreEntry("Ada", BoardSize.HARD, 1234, 21, 54_000);
+        ScoreEntry parsed = ScoreEntry.fromLine(entry.toLine());
+        check("a clean entry round-trips through toLine/fromLine by value",
+                parsed != null && parsed.equals(entry));
+
+        ScoreEntry tabbed = new ScoreEntry("Ada\tByron", BoardSize.EASY, 42, 3, 9000);
+        ScoreEntry tabbedParsed = ScoreEntry.fromLine(tabbed.toLine());
+        check("a de-tabbed name round-trips with no tab and equal value",
+                tabbedParsed != null && !tabbedParsed.name().contains("\t")
+                        && tabbedParsed.equals(tabbed));
+    }
+
+    /**
+     * {@link ScoreEntry#fromLine} rejects lines with an unknown size label or any
+     * negative numeric field (P2-6), and accepts a well-formed line.
+     */
+    private static void testCorruptLinesRejected() {
+        check("an unknown size label is rejected",
+                ScoreEntry.fromLine("Bogus\tX\t100\t5\t1000") == null);
+        check("a negative score is rejected",
+                ScoreEntry.fromLine("Normal\tX\t-5\t5\t1000") == null);
+        check("negative turns are rejected",
+                ScoreEntry.fromLine("Normal\tX\t100\t-1\t1000") == null);
+        check("a negative time is rejected",
+                ScoreEntry.fromLine("Normal\tX\t100\t5\t-1000") == null);
+
+        ScoreEntry valid = ScoreEntry.fromLine("Normal\tX\t100\t5\t1000");
+        check("a well-formed line parses to the right fields",
+                valid != null && valid.size() == BoardSize.NORMAL
+                        && valid.score() == 100 && valid.turns() == 5
+                        && valid.timeMillis() == 1000);
+    }
+
+    // --- settings ------------------------------------------------------------
+
+    /**
+     * {@link Settings} round-trips board size, tile theme, and the sound flag
+     * through its path-taking save/load seam. The theme check also confirms the
+     * display-name serialisation ({@code SHAPES.displayName()} is "Symbols")
+     * resolves back to the enum on load.
+     */
+    private static void testSettingsRoundTrip() throws IOException {
+        Path tmp = Files.createTempFile("tessera-settings", ".properties");
+        try {
+            Settings s = new Settings();
+            s.setBoardSize(BoardSize.HARD);
+            s.setTileTheme(TileTheme.SHAPES);
+            s.setSoundEnabled(false);
+            s.save(tmp);
+
+            Settings loaded = Settings.load(tmp);
+            check("board size survives the settings round trip",
+                    loaded.boardSize() == BoardSize.HARD);
+            check("tile theme survives the settings round trip (Symbols -> SHAPES)",
+                    loaded.tileTheme() == TileTheme.SHAPES);
+            check("sound flag survives the settings round trip",
+                    !loaded.soundEnabled());
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
     }
 
     // --- controller ----------------------------------------------------------
@@ -283,6 +402,63 @@ public final class LogicTests {
         // Release the held callback so the turn resolves (a match) and unlocks.
         view.releasePending();
         check("after the turn resolves, play accepts a new click",
+                acceptsClick(controller, board, third));
+    }
+
+    /**
+     * The mismatch half of the turn state machine, previously only verified by
+     * playing the game (the real flip-back runs on a Swing Timer that never fires
+     * in these headless tests). An injected synchronous
+     * {@link GameController.MismatchTimer} runs the flip-back in place, so clicking
+     * two differing faces here must record one mismatch and one turn, flip both
+     * tiles back face down, and leave input unlocked for the next click.
+     */
+    private static void testMismatchResolves() {
+        Board board = new Board(BoardSize.EASY, TileTheme.LETTERS, new Random(7));
+        GameSession session = new GameSession(BoardSize.EASY, TileTheme.LETTERS, board);
+        GameController.MismatchTimer immediate = new GameController.MismatchTimer() {
+            @Override public void schedule(Runnable flipBack) { flipBack.run(); }
+            @Override public void cancel() { }
+        };
+        GameController controller = new GameController(session, new SyncView(), immediate);
+
+        // Find any cell whose face differs from (0,0)'s: clicking the two is a
+        // guaranteed mismatch.
+        String firstFace = board.tileAt(0, 0).face();
+        int[] mismatch = null;
+        outer:
+        for (int r = 0; r < board.rows(); r++) {
+            for (int c = 0; c < board.cols(); c++) {
+                if (!board.tileAt(r, c).face().equals(firstFace)) {
+                    mismatch = new int[] {r, c};
+                    break outer;
+                }
+            }
+        }
+
+        controller.onTileClicked(0, 0);
+        controller.onTileClicked(mismatch[0], mismatch[1]);
+
+        check("a mismatched turn records exactly one mismatch",
+                session.mismatches() == 1);
+        check("a mismatched turn counts as one turn", session.turns() == 1);
+        check("the first mismatched tile flips back face down",
+                !board.tileAt(0, 0).isFaceUp());
+        check("the second mismatched tile flips back face down",
+                !board.tileAt(mismatch[0], mismatch[1]).isFaceUp());
+
+        // Input must be unlocked again: clicking a third, still-down tile reveals
+        // it.
+        int[] third = null;
+        for (int r = 0; r < board.rows() && third == null; r++) {
+            for (int c = 0; c < board.cols(); c++) {
+                if ((r != 0 || c != 0) && (r != mismatch[0] || c != mismatch[1])) {
+                    third = new int[] {r, c};
+                    break;
+                }
+            }
+        }
+        check("input is unlocked after a mismatch resolves",
                 acceptsClick(controller, board, third));
     }
 

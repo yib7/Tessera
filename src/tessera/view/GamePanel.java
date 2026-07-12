@@ -6,13 +6,19 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
 
@@ -32,9 +38,6 @@ import tessera.model.Tile;
 @SuppressWarnings("serial") // Swing component; never serialized.
 public final class GamePanel extends JPanel implements GameView {
 
-    /** How long the board stays face up for the player to memorize, in seconds. */
-    private static final int PREVIEW_SECONDS = 5;
-
     private final Navigator navigator;
     private final GameSession session;
     private final GameController controller;
@@ -48,6 +51,13 @@ public final class GamePanel extends JPanel implements GameView {
     private final JButton pauseButton = UiFactory.secondaryButton("Pause");
     private final JPanel boardPanel;
     private final Timer clockTimer;
+
+    // The board area flips between the live grid and a "Paused" cover, so a
+    // pause genuinely hides the tiles (no free study time with the clock frozen).
+    private final CardLayout boardCardLayout = new CardLayout();
+    private final JPanel boardCards = new JPanel(boardCardLayout);
+    private static final String CARD_BOARD = "BOARD";
+    private static final String CARD_PAUSED = "PAUSED";
 
     // The HUD centre flips between the live stats and the memorize countdown.
     private final CardLayout hudCenterCards = new CardLayout();
@@ -73,7 +83,25 @@ public final class GamePanel extends JPanel implements GameView {
 
         add(buildHud(), BorderLayout.NORTH);
         this.boardPanel = buildBoard();
-        add(boardPanel, BorderLayout.CENTER);
+        boardCards.setOpaque(false);
+        boardCards.add(boardPanel, CARD_BOARD);
+        boardCards.add(buildPauseCover(), CARD_PAUSED);
+        boardCardLayout.show(boardCards, CARD_BOARD);
+        add(boardCards, BorderLayout.CENTER);
+
+        // Escape toggles pause from anywhere in the window, so a keyboard player
+        // is not forced to mouse over to the Pause button.
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke("ESCAPE"), "togglePause");
+        getActionMap().put("togglePause", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Mirror the button's guard: no pausing during the memorize phase.
+                if (pauseButton.isEnabled()) {
+                    togglePause();
+                }
+            }
+        });
 
         // Tick the time readout twice a second while the clock runs.
         this.clockTimer = new Timer(500, e -> refreshTime());
@@ -163,6 +191,25 @@ public final class GamePanel extends JPanel implements GameView {
                 button.setGlyph(tile.face());
                 button.setStateImmediate(false, false);
                 button.setOnClick(() -> controller.onTileClicked(row, col));
+                // Arrow keys move focus to the neighbouring tile so the grid is
+                // navigable from the keyboard (Enter/Space flips, handled in TileButton).
+                button.addKeyListener(new KeyAdapter() {
+                    @Override
+                    public void keyPressed(KeyEvent e) {
+                        int nr = row;
+                        int nc = col;
+                        switch (e.getKeyCode()) {
+                            case KeyEvent.VK_UP -> nr = Math.max(0, row - 1);
+                            case KeyEvent.VK_DOWN -> nr = Math.min(tiles.length - 1, row + 1);
+                            case KeyEvent.VK_LEFT -> nc = Math.max(0, col - 1);
+                            case KeyEvent.VK_RIGHT -> nc = Math.min(tiles[row].length - 1, col + 1);
+                            default -> {
+                                return;
+                            }
+                        }
+                        tiles[nr][nc].requestFocusInWindow();
+                    }
+                });
                 tiles[r][c] = button;
                 panel.add(button);
             }
@@ -170,13 +217,45 @@ public final class GamePanel extends JPanel implements GameView {
         return panel;
     }
 
+    /**
+     * The cover shown over the board while paused. It is opaque so the live tiles
+     * beneath it are hidden, removing the free-thinking-time exploit where a
+     * player pauses mid-turn to study a revealed tile with the clock frozen.
+     */
+    private JPanel buildPauseCover() {
+        JPanel cover = new JPanel(new GridBagLayout());
+        cover.setBackground(Theme.BACKGROUND);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+
+        JLabel heading = new JLabel("Paused");
+        heading.setFont(Theme.heading());
+        heading.setForeground(Theme.TEXT_PRIMARY);
+        heading.setAlignmentX(JComponent.CENTER_ALIGNMENT);
+
+        JLabel hint = new JLabel("Press Escape or Resume to continue");
+        hint.setFont(Theme.body());
+        hint.setForeground(Theme.TEXT_MUTED);
+        hint.setAlignmentX(JComponent.CENTER_ALIGNMENT);
+
+        column.add(heading);
+        column.add(Box.createRigidArea(new Dimension(0, 10)));
+        column.add(hint);
+        cover.add(column);
+        return cover;
+    }
+
     private void togglePause() {
         if (controller.isPaused()) {
             controller.resume();
+            boardCardLayout.show(boardCards, CARD_BOARD);
             pauseButton.setText("Pause");
             clockTimer.start();
         } else {
             controller.pause();
+            boardCardLayout.show(boardCards, CARD_PAUSED);
             pauseButton.setText("Resume");
             clockTimer.stop();
         }
@@ -188,6 +267,15 @@ public final class GamePanel extends JPanel implements GameView {
     }
 
     // Memorize phase ---------------------------------------------------------
+
+    /**
+     * How long the board stays face up for the player to memorize, in seconds,
+     * scaled by board size so a big board gets a fair look and a small one is
+     * not sluggish (EASY 3s, NORMAL 4s, HARD 9s).
+     */
+    private int previewSeconds() {
+        return Math.max(3, session.size().cellCount() / 6);
+    }
 
     /**
      * Open every tile face up and run a short countdown before the game begins,
@@ -205,7 +293,7 @@ public final class GamePanel extends JPanel implements GameView {
                 tile.setStateImmediate(true, false);
             }
         }
-        previewRemaining = PREVIEW_SECONDS;
+        previewRemaining = previewSeconds();
         showCountdown(previewRemaining);
 
         previewTimer = new Timer(1000, e -> tickPreview());
@@ -247,6 +335,8 @@ public final class GamePanel extends JPanel implements GameView {
         pauseButton.setEnabled(true);
         if (!controller.isPaused()) {
             setBoardInteractive(true);
+            // Give keyboard players an anchor to arrow away from once play begins.
+            tiles[0][0].requestFocusInWindow();
         }
     }
 
@@ -319,6 +409,9 @@ public final class GamePanel extends JPanel implements GameView {
         if (previewTimer != null) {
             previewTimer.stop();
         }
+        // Cancel any scheduled mismatch flip-back so it cannot fire against this
+        // dead board after teardown (the timer lives on the controller).
+        controller.cancelPending();
         for (TileButton[] rowTiles : tiles) {
             for (TileButton tile : rowTiles) {
                 tile.stopAnimation();
