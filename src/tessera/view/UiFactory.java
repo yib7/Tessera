@@ -206,4 +206,30 @@ public final class UiFactory {
     public static Chip countdownChip(String caption) {
         return new Chip(caption, true);
     }
+
+    /** A small raised pill label — a one-line summary badge (e.g. the menu's size/theme). */
+    public static JLabel pill(String text) {
+        JLabel label = new JLabel(text, SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth();
+                int h = getHeight();
+                Paint.dropShadow(g2, 1, 1, w - 2, h - 4, h, 2, 22);
+                g2.setColor(Theme.SURFACE_RAISED);
+                g2.fillRoundRect(1, 1, w - 2, h - 4, h, h);
+                g2.setColor(Theme.BORDER_HI);
+                g2.drawRoundRect(1, 1, w - 3, h - 5, h, h);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        label.setOpaque(false);
+        label.setFont(Theme.label());
+        label.setForeground(Theme.TEXT_MUTED);
+        label.setBorder(BorderFactory.createEmptyBorder(7, 18, 9, 18));
+        return label;
+    }
 }
