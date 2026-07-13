@@ -9,6 +9,8 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -30,13 +32,13 @@ import tessera.model.GameSession;
 import tessera.model.Tile;
 
 /**
- * The board screen. It builds the tile grid from the session, wires each tile's
- * click to the controller, and shows a live HUD (turns, score, time) plus pause
- * and quit controls. It implements {@link GameView} so the controller can drive
- * the animations without knowing this is Swing.
+ * The board screen. It builds the tile grid inside a recessed board well, wires
+ * each tile's click to the controller, and shows a chip HUD (turns, score, time)
+ * plus pause and quit controls. It implements {@link GameView} so the controller
+ * can drive the animations without knowing this is Swing.
  */
 @SuppressWarnings("serial") // Swing component; never serialized.
-public final class GamePanel extends JPanel implements GameView {
+public final class GamePanel extends BackgroundPanel implements GameView {
 
     private final Navigator navigator;
     private final GameSession session;
@@ -45,9 +47,10 @@ public final class GamePanel extends JPanel implements GameView {
     private final Color accent;
 
     private final TileButton[][] tiles;
-    private final JLabel turnsLabel = new JLabel();
-    private final JLabel scoreLabel = new JLabel();
-    private final JLabel timeLabel = new JLabel();
+    private final Chip turnsChip = UiFactory.hudChip("Turns");
+    private final Chip scoreChip = UiFactory.hudChip("Score");
+    private final Chip timeChip = UiFactory.hudChip("Time");
+    private final Chip countdownChip = UiFactory.countdownChip("Memorize");
     private final JButton pauseButton = UiFactory.secondaryButton("Pause");
     private final JPanel boardPanel;
     private final Timer clockTimer;
@@ -55,19 +58,21 @@ public final class GamePanel extends JPanel implements GameView {
     // The board area flips between the live grid and a "Paused" cover, so a
     // pause genuinely hides the tiles (no free study time with the clock frozen).
     private final CardLayout boardCardLayout = new CardLayout();
-    private final JPanel boardCards = new JPanel(boardCardLayout);
+    private final WellPanel boardCards = new WellPanel(boardCardLayout);
     private static final String CARD_BOARD = "BOARD";
     private static final String CARD_PAUSED = "PAUSED";
 
-    // The HUD centre flips between the live stats and the memorize countdown.
+    // The HUD centre flips between the live stat chips and the memorize countdown.
     private final CardLayout hudCenterCards = new CardLayout();
     private final JPanel hudCenter = new JPanel(hudCenterCards);
-    private final JLabel countdownLabel = new JLabel("", SwingConstants.CENTER);
     private static final String CARD_STATS = "STATS";
     private static final String CARD_COUNTDOWN = "COUNTDOWN";
 
     private Timer previewTimer;
     private int previewRemaining;
+    // One-shot timers that stagger the deal/preview flip-down into a diagonal
+    // cascade; tracked so teardown can cancel any still pending.
+    private final List<Timer> pendingFlips = new ArrayList<>();
 
     public GamePanel(Navigator navigator, GameSession session, SoundPlayer sound) {
         this.navigator = navigator;
@@ -78,16 +83,21 @@ public final class GamePanel extends JPanel implements GameView {
         this.tiles = new TileButton[session.board().rows()][session.board().cols()];
 
         setLayout(new BorderLayout());
-        setBackground(Theme.BACKGROUND);
-        setBorder(BorderFactory.createEmptyBorder(16, 24, 24, 24));
+        setBorder(BorderFactory.createEmptyBorder(16, 28, 26, 28));
 
         add(buildHud(), BorderLayout.NORTH);
         this.boardPanel = buildBoard();
-        boardCards.setOpaque(false);
+        boardPanel.setBorder(BorderFactory.createEmptyBorder(18, 18, 18, 18));
         boardCards.add(boardPanel, CARD_BOARD);
-        boardCards.add(buildPauseCover(), CARD_PAUSED);
+        boardCards.add(new PauseCover(), CARD_PAUSED);
         boardCardLayout.show(boardCards, CARD_BOARD);
-        add(boardCards, BorderLayout.CENTER);
+
+        // Centre the well with a little breathing room on the sides.
+        JPanel boardHolder = new JPanel(new BorderLayout());
+        boardHolder.setOpaque(false);
+        boardHolder.setBorder(BorderFactory.createEmptyBorder(4, 8, 0, 8));
+        boardHolder.add(boardCards, BorderLayout.CENTER);
+        add(boardHolder, BorderLayout.CENTER);
 
         // Escape toggles pause from anywhere in the window, so a keyboard player
         // is not forced to mouse over to the Pause button.
@@ -118,33 +128,28 @@ public final class GamePanel extends JPanel implements GameView {
     private JPanel buildHud() {
         JPanel hud = new JPanel(new BorderLayout());
         hud.setOpaque(false);
-        hud.setBorder(BorderFactory.createEmptyBorder(0, 0, 16, 0));
+        hud.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
 
         JLabel title = new JLabel(session.size().label() + " board", SwingConstants.LEFT);
-        title.setFont(Theme.heading());
+        title.setFont(Theme.boardTitle());
         title.setForeground(Theme.TEXT_PRIMARY);
-        title.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 24));
+        title.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 24));
 
         JPanel stats = new JPanel();
         stats.setOpaque(false);
         stats.setLayout(new BoxLayout(stats, BoxLayout.X_AXIS));
-        styleStat(turnsLabel);
-        styleStat(scoreLabel);
-        styleStat(timeLabel);
         stats.add(Box.createHorizontalGlue());
-        stats.add(turnsLabel);
-        stats.add(Box.createRigidArea(new Dimension(20, 0)));
-        stats.add(scoreLabel);
-        stats.add(Box.createRigidArea(new Dimension(20, 0)));
-        stats.add(timeLabel);
+        stats.add(turnsChip);
+        stats.add(Box.createRigidArea(new Dimension(12, 0)));
+        stats.add(scoreChip);
+        stats.add(Box.createRigidArea(new Dimension(12, 0)));
+        stats.add(timeChip);
         stats.add(Box.createHorizontalGlue());
 
-        // The same slot shows the memorize countdown before the game starts.
+        // The same slot shows the memorize countdown chip before the game starts.
         JPanel countdownCard = new JPanel(new GridBagLayout());
         countdownCard.setOpaque(false);
-        countdownLabel.setFont(Theme.heading());
-        countdownLabel.setForeground(accent);
-        countdownCard.add(countdownLabel);
+        countdownCard.add(countdownChip);
 
         hudCenter.setOpaque(false);
         hudCenter.add(stats, CARD_STATS);
@@ -154,7 +159,7 @@ public final class GamePanel extends JPanel implements GameView {
         controls.setOpaque(false);
         controls.setLayout(new BoxLayout(controls, BoxLayout.X_AXIS));
         pauseButton.addActionListener(e -> togglePause());
-        JButton menuButton = UiFactory.secondaryButton("Quit to menu");
+        JButton menuButton = UiFactory.ghostButton("Quit to menu");
         menuButton.addActionListener(e -> {
             // Stop this panel's timers before leaving. removeNotify() is the
             // guaranteed teardown when the panel is later replaced, but quitting
@@ -163,7 +168,7 @@ public final class GamePanel extends JPanel implements GameView {
             navigator.show(Navigator.Screen.MENU);
         });
         controls.add(pauseButton);
-        controls.add(Box.createRigidArea(new Dimension(10, 0)));
+        controls.add(Box.createRigidArea(new Dimension(8, 0)));
         controls.add(menuButton);
 
         hud.add(title, BorderLayout.WEST);
@@ -172,15 +177,10 @@ public final class GamePanel extends JPanel implements GameView {
         return hud;
     }
 
-    private void styleStat(JLabel label) {
-        label.setFont(Theme.hud());
-        label.setForeground(Theme.TEXT_PRIMARY);
-    }
-
     private JPanel buildBoard() {
         Board board = session.board();
 
-        JPanel panel = new JPanel(new GridLayout(board.rows(), board.cols(), 8, 8));
+        JPanel panel = new JPanel(new GridLayout(board.rows(), board.cols(), 10, 10));
         panel.setOpaque(false);
         for (int r = 0; r < board.rows(); r++) {
             for (int c = 0; c < board.cols(); c++) {
@@ -217,36 +217,6 @@ public final class GamePanel extends JPanel implements GameView {
         return panel;
     }
 
-    /**
-     * The cover shown over the board while paused. It is opaque so the live tiles
-     * beneath it are hidden, removing the free-thinking-time exploit where a
-     * player pauses mid-turn to study a revealed tile with the clock frozen.
-     */
-    private JPanel buildPauseCover() {
-        JPanel cover = new JPanel(new GridBagLayout());
-        cover.setBackground(Theme.BACKGROUND);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-
-        JLabel heading = new JLabel("Paused");
-        heading.setFont(Theme.heading());
-        heading.setForeground(Theme.TEXT_PRIMARY);
-        heading.setAlignmentX(JComponent.CENTER_ALIGNMENT);
-
-        JLabel hint = new JLabel("Press Escape or Resume to continue");
-        hint.setFont(Theme.body());
-        hint.setForeground(Theme.TEXT_MUTED);
-        hint.setAlignmentX(JComponent.CENTER_ALIGNMENT);
-
-        column.add(heading);
-        column.add(Box.createRigidArea(new Dimension(0, 10)));
-        column.add(hint);
-        cover.add(column);
-        return cover;
-    }
-
     private void togglePause() {
         if (controller.isPaused()) {
             controller.resume();
@@ -263,7 +233,7 @@ public final class GamePanel extends JPanel implements GameView {
 
     private void refreshTime() {
         long seconds = session.elapsedMillis() / 1000;
-        timeLabel.setText(String.format("Time %d:%02d", seconds / 60, seconds % 60));
+        timeChip.setValue(String.format("%d:%02d", seconds / 60, seconds % 60));
     }
 
     // Memorize phase ---------------------------------------------------------
@@ -311,11 +281,15 @@ public final class GamePanel extends JPanel implements GameView {
     }
 
     private void showCountdown(int seconds) {
-        countdownLabel.setText("Memorize the board - " + seconds + "s");
+        countdownChip.setValue(seconds + "s");
         hudCenterCards.show(hudCenter, CARD_COUNTDOWN);
     }
 
-    /** Flip the whole board face down, then hand control to the player. */
+    /**
+     * Flip the whole board face down as a diagonal cascade — each tile's flip is
+     * delayed by {@code (row + col) × 45ms} — then hand control to the player. The
+     * bottom-right tile flips last, so its completion re-enables input.
+     */
     private void finishPreview() {
         hudCenterCards.show(hudCenter, CARD_STATS);
         controller.endPreview();
@@ -324,9 +298,22 @@ public final class GamePanel extends JPanel implements GameView {
         int lastCol = tiles[lastRow].length - 1;
         for (int r = 0; r < tiles.length; r++) {
             for (int c = 0; c < tiles[r].length; c++) {
-                // Re-enable input only once the last tile has finished flipping.
+                final int rr = r;
+                final int cc = c;
                 Runnable whenDone = (r == lastRow && c == lastCol) ? this::onPreviewDone : null;
-                tiles[r][c].flipDown(whenDone);
+                int delay = (r + c) * 45;
+                if (delay == 0) {
+                    tiles[rr][cc].flipDown(whenDone);
+                } else {
+                    final Timer t = new Timer(delay, null);
+                    t.setRepeats(false);
+                    t.addActionListener(e -> {
+                        pendingFlips.remove(t);
+                        tiles[rr][cc].flipDown(whenDone);
+                    });
+                    pendingFlips.add(t);
+                    t.start();
+                }
             }
         }
     }
@@ -360,6 +347,14 @@ public final class GamePanel extends JPanel implements GameView {
     }
 
     @Override
+    public void markMismatch(int firstRow, int firstCol, int secondRow, int secondCol) {
+        // Flash both tiles (error border + shake); cleared automatically when the
+        // controller flips them back down after the mismatch pause.
+        tiles[firstRow][firstCol].showMismatch();
+        tiles[secondRow][secondCol].showMismatch();
+    }
+
+    @Override
     public void setBoardInteractive(boolean interactive) {
         for (TileButton[] rowTiles : tiles) {
             for (TileButton tile : rowTiles) {
@@ -370,8 +365,8 @@ public final class GamePanel extends JPanel implements GameView {
 
     @Override
     public void updateHud() {
-        turnsLabel.setText("Turns " + session.turns());
-        scoreLabel.setText("Score " + session.score());
+        turnsChip.setValue(Integer.toString(session.turns()));
+        scoreChip.setValue(Integer.toString(session.score()));
         refreshTime();
         // A mismatch is the only HUD update that is not also a match; play its
         // cue here so the controller stays free of sound concerns.
@@ -395,8 +390,8 @@ public final class GamePanel extends JPanel implements GameView {
      * animations. This is the single teardown path for the panel's timers: it
      * runs whenever the panel leaves the component hierarchy (the CardLayout
      * replaces the GAME card on each replay, or the window closes), so an
-     * orphaned panel can never keep a clock, preview, or flip Timer firing
-     * {@code repaint()} against dead UI.
+     * orphaned panel can never keep a clock, preview, cascade, or flip Timer
+     * firing {@code repaint()} against dead UI.
      */
     @Override
     public void removeNotify() {
@@ -409,6 +404,10 @@ public final class GamePanel extends JPanel implements GameView {
         if (previewTimer != null) {
             previewTimer.stop();
         }
+        for (Timer t : pendingFlips) {
+            t.stop();
+        }
+        pendingFlips.clear();
         // Cancel any scheduled mismatch flip-back so it cannot fire against this
         // dead board after teardown (the timer lives on the controller).
         controller.cancelPending();

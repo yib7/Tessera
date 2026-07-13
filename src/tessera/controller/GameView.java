@@ -20,6 +20,15 @@ public interface GameView {
     /** Enable or disable all board input (used during the mismatch pause). */
     void setBoardInteractive(boolean interactive);
 
+    /**
+     * Flash the two mismatched tiles (error border + shake) at the start of the
+     * mismatch pause, before they flip back down. Default no-op: a headless view
+     * (e.g. the logic tests) needs no animation, and the controller's turn logic
+     * does not depend on it.
+     */
+    default void markMismatch(int firstRow, int firstCol, int secondRow, int secondCol) {
+    }
+
     /** Refresh the turns / score / time readout. */
     void updateHud();
 

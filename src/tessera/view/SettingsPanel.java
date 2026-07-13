@@ -7,12 +7,9 @@ import java.awt.GridBagLayout;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
@@ -22,21 +19,22 @@ import tessera.model.Settings;
 import tessera.model.TileTheme;
 
 /**
- * Lets the player choose board size, tile theme, and whether sound cues play.
- * Changes are written to {@link Settings} (and persisted) the moment Save is
- * pressed, and the sound player is updated live so the toggle takes effect
- * without a restart.
+ * Lets the player choose board size, tile theme, and whether sound cues play,
+ * using the de-stocked controls (a segmented picker, a custom dropdown and a
+ * toggle) in a raised surface card. Changes are written to {@link Settings} (and
+ * persisted) the moment Save is pressed, and the sound player is updated live so
+ * the toggle takes effect without a restart.
  */
 @SuppressWarnings("serial") // Swing component; never serialized.
-public final class SettingsPanel extends JPanel {
+public final class SettingsPanel extends BackgroundPanel {
 
     private final Settings settings;
     private final SoundPlayer sound;
     private final Runnable onSaved;
 
-    private final JComboBox<BoardSize> sizeBox = new JComboBox<>(BoardSize.values());
-    private final JComboBox<TileTheme> themeBox = new JComboBox<>(TileTheme.values());
-    private final JCheckBox soundBox = new JCheckBox("Sound cues");
+    private final SegmentedPicker sizePicker;
+    private final Dropdown<TileTheme> themePicker;
+    private final ToggleSwitch soundToggle;
 
     public SettingsPanel(Navigator navigator, Settings settings, SoundPlayer sound,
             Runnable onSaved) {
@@ -45,104 +43,87 @@ public final class SettingsPanel extends JPanel {
         this.onSaved = onSaved;
 
         setLayout(new GridBagLayout());
-        setBackground(Theme.BACKGROUND);
 
-        // The combo boxes hold enum constants, whose toString() is the raw name
-        // ("EASY", "DIGITS"). Render the same display labels the rest of the app
-        // uses so the settings screen reads "Easy" / "Numbers", not "EASY" /
-        // "DIGITS". The class-level @SuppressWarnings("serial") covers these
-        // anonymous DefaultListCellRenderer subclasses.
-        sizeBox.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value,
-                    int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected,
-                        cellHasFocus);
-                if (value instanceof BoardSize bs) {
-                    setText(bs.label());
-                }
-                return this;
-            }
-        });
-        themeBox.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value,
-                    int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected,
-                        cellHasFocus);
-                if (value instanceof TileTheme t) {
-                    setText(t.displayName());
-                }
-                return this;
-            }
-        });
+        String[] sizeLabels = new String[BoardSize.values().length];
+        for (int i = 0; i < sizeLabels.length; i++) {
+            sizeLabels[i] = BoardSize.values()[i].label();
+        }
+        sizePicker = new SegmentedPicker(sizeLabels, settings.boardSize().ordinal());
+        themePicker = new Dropdown<>(TileTheme.values(), TileTheme::displayName,
+                settings.tileTheme().ordinal());
+        soundToggle = new ToggleSwitch(settings.soundEnabled());
 
         JPanel column = new JPanel();
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
 
-        JLabel heading = UiFactory.heading("Settings");
+        JLabel heading = UiFactory.screenTitle("Settings");
         heading.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        column.add(heading);
-        column.add(Box.createRigidArea(new Dimension(0, 28)));
-        column.add(row("Board size", sizeBox));
-        column.add(Box.createRigidArea(new Dimension(0, 16)));
-        column.add(row("Tile theme", themeBox));
-        column.add(Box.createRigidArea(new Dimension(0, 16)));
-
-        soundBox.setOpaque(false);
-        soundBox.setForeground(Theme.TEXT_PRIMARY);
-        soundBox.setFont(Theme.body());
-        soundBox.setAlignmentX(Component.CENTER_ALIGNMENT);
-        column.add(soundBox);
-        column.add(Box.createRigidArea(new Dimension(0, 32)));
+        Card card = new Card();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(javax.swing.BorderFactory.createEmptyBorder(26, 30, 28, 30));
+        card.setMaximumSize(new Dimension(460, 320));
+        card.add(row("Board size", sizePicker));
+        card.add(Box.createRigidArea(new Dimension(0, 18)));
+        card.add(row("Tile theme", themePicker));
+        card.add(Box.createRigidArea(new Dimension(0, 18)));
+        card.add(row("Sound cues", soundToggle));
+        card.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
-        JButton save = UiFactory.primaryButton("Save");
-        save.addActionListener(e -> save(navigator));
         JButton back = UiFactory.secondaryButton("Back");
         back.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
+        JButton save = UiFactory.primaryButton("Save");
+        save.addActionListener(e -> save(navigator));
         buttons.add(back);
         buttons.add(Box.createRigidArea(new Dimension(12, 0)));
         buttons.add(save);
         buttons.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        column.add(heading);
+        column.add(Box.createRigidArea(new Dimension(0, 24)));
+        column.add(card);
+        column.add(Box.createRigidArea(new Dimension(0, 26)));
         column.add(buttons);
 
         add(column, new GridBagConstraints());
         refresh();
     }
 
-    private JPanel row(String labelText, JComboBox<?> box) {
+    /** One labelled control row: a fixed-width label on the left, the control on the right. */
+    private JPanel row(String labelText, JComponent control) {
         JPanel row = new JPanel();
         row.setOpaque(false);
         row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
         JLabel label = new JLabel(labelText);
         label.setForeground(Theme.TEXT_PRIMARY);
         label.setFont(Theme.label());
-        label.setPreferredSize(new Dimension(110, 28));
-        box.setMaximumSize(new Dimension(180, 28));
-        box.setFont(Theme.body());
+        label.setPreferredSize(new Dimension(120, 30));
+        label.setMaximumSize(new Dimension(120, 46));
         row.add(label);
-        row.add(Box.createRigidArea(new Dimension(12, 0)));
-        row.add(box);
+        row.add(Box.createRigidArea(new Dimension(16, 0)));
+        control.setAlignmentY(Component.CENTER_ALIGNMENT);
+        row.add(control);
+        row.add(Box.createHorizontalGlue());
         row.setAlignmentX(Component.CENTER_ALIGNMENT);
+        row.setMaximumSize(new Dimension(400, 48));
         return row;
     }
 
     /** Sync the controls with the current settings; called when shown. */
     public void refresh() {
-        sizeBox.setSelectedItem(settings.boardSize());
-        themeBox.setSelectedItem(settings.tileTheme());
-        soundBox.setSelected(settings.soundEnabled());
+        sizePicker.setSelectedIndex(settings.boardSize().ordinal());
+        themePicker.setSelected(settings.tileTheme());
+        soundToggle.setOn(settings.soundEnabled());
     }
 
     private void save(Navigator navigator) {
-        settings.setBoardSize((BoardSize) sizeBox.getSelectedItem());
-        settings.setTileTheme((TileTheme) themeBox.getSelectedItem());
-        settings.setSoundEnabled(soundBox.isSelected());
+        settings.setBoardSize(BoardSize.values()[sizePicker.getSelectedIndex()]);
+        settings.setTileTheme(themePicker.getSelected());
+        settings.setSoundEnabled(soundToggle.isOn());
         sound.setEnabled(settings.soundEnabled());
         try {
             settings.save();

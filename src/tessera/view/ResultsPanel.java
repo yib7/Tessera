@@ -11,7 +11,6 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
 import tessera.controller.Navigator;
@@ -20,38 +19,45 @@ import tessera.model.Leaderboard;
 import tessera.model.ScoreEntry;
 
 /**
- * Shown when the board is cleared. It reports the run's score, turns, and time,
- * and if the score qualifies for the leaderboard it asks for a name and records
- * it. Name entry only appears when the score actually makes the cut, so a player
- * is not prompted for a run that would not be saved.
+ * Shown when the board is cleared. The run's score is the hero, wrapped in a
+ * painted celebration flourish, with turns / time / misses as a chip row. If the
+ * score qualifies for the leaderboard it asks for a name and records it; name
+ * entry only appears when the score actually makes the cut, so a player is not
+ * prompted for a run that would not be saved.
  */
 @SuppressWarnings("serial") // Swing component; never serialized.
-public final class ResultsPanel extends JPanel {
+public final class ResultsPanel extends BackgroundPanel {
 
     public ResultsPanel(Navigator navigator, GameSession session, Leaderboard leaderboard) {
         setLayout(new GridBagLayout());
-        setBackground(Theme.BACKGROUND);
 
         JPanel column = new JPanel();
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
 
-        JLabel title = UiFactory.title("Solved");
-        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JLabel heading = UiFactory.heading("Solved!");
+        heading.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        HeroScore hero = new HeroScore(session.score());
+        hero.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         long seconds = session.elapsedMillis() / 1000;
         String timeText = String.format("%d:%02d", seconds / 60, seconds % 60);
-        JLabel stats = new JLabel(String.format(
-                "Score %d   -   %d turns   -   %s   -   %d misses",
-                session.score(), session.turns(), timeText, session.mismatches()),
-                SwingConstants.CENTER);
-        stats.setFont(Theme.hud());
-        stats.setForeground(Theme.TEXT_PRIMARY);
-        stats.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JPanel chips = new JPanel();
+        chips.setOpaque(false);
+        chips.setLayout(new BoxLayout(chips, BoxLayout.X_AXIS));
+        chips.add(statChip("Turns", Integer.toString(session.turns())));
+        chips.add(Box.createRigidArea(new Dimension(12, 0)));
+        chips.add(statChip("Time", timeText));
+        chips.add(Box.createRigidArea(new Dimension(12, 0)));
+        chips.add(statChip("Misses", Integer.toString(session.mismatches())));
+        chips.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        column.add(title);
-        column.add(Box.createRigidArea(new Dimension(0, 10)));
-        column.add(stats);
+        column.add(heading);
+        column.add(Box.createRigidArea(new Dimension(0, 4)));
+        column.add(hero);
+        column.add(Box.createRigidArea(new Dimension(0, 8)));
+        column.add(chips);
         column.add(Box.createRigidArea(new Dimension(0, 28)));
 
         ScoreEntry candidate = new ScoreEntry("", session.size(),
@@ -66,18 +72,23 @@ public final class ResultsPanel extends JPanel {
         add(column, new GridBagConstraints());
     }
 
+    private static Chip statChip(String caption, String value) {
+        Chip chip = UiFactory.hudChip(caption);
+        chip.setValue(value);
+        return chip;
+    }
+
     private void addNameEntry(Navigator navigator, GameSession session,
             Leaderboard leaderboard, JPanel column) {
         JLabel prompt = UiFactory.muted("That score makes the leaderboard. Enter a name:");
         prompt.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JTextField nameField = new JTextField(16);
-        nameField.setMaximumSize(new Dimension(260, 32));
-        nameField.setFont(Theme.body());
+        PaintedTextField nameField = new PaintedTextField(16);
+        nameField.setMaximumSize(new Dimension(280, 44));
         nameField.setAlignmentX(Component.CENTER_ALIGNMENT);
+        nameField.setHorizontalAlignment(SwingConstants.CENTER);
 
         JButton submit = UiFactory.primaryButton("Save score");
-        submit.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         Runnable doSubmit = () -> {
             String name = nameField.getText();
@@ -99,20 +110,18 @@ public final class ResultsPanel extends JPanel {
         submit.addActionListener(e -> doSubmit.run());
         nameField.addActionListener(e -> doSubmit.run());
 
-        JButton skip = UiFactory.secondaryButton("Skip");
-        skip.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JButton skip = UiFactory.ghostButton("Skip");
         skip.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
 
         // Starts a fresh game without saving this run, mirroring Skip's discard
         // semantics but heading to a new game instead of the menu.
         JButton again = UiFactory.secondaryButton("Play again");
-        again.setAlignmentX(Component.CENTER_ALIGNMENT);
         again.addActionListener(e -> navigator.startGame());
 
         column.add(prompt);
-        column.add(Box.createRigidArea(new Dimension(0, 10)));
+        column.add(Box.createRigidArea(new Dimension(0, 12)));
         column.add(nameField);
-        column.add(Box.createRigidArea(new Dimension(0, 16)));
+        column.add(Box.createRigidArea(new Dimension(0, 18)));
 
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);

@@ -1,8 +1,14 @@
 # Build output
 bin/
 bin-test/
+bin-tools/
 dist/
 *.class
+
+# Autopilot working notes + verification harness (local-only; keeps the public repo clean)
+.autopilot/
+tools/
+renders-check/
 
 # IDE
 .idea/
