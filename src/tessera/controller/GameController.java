@@ -190,6 +190,9 @@ public final class GameController {
         session.recordMismatch();
         view.updateHud();
         view.setBoardInteractive(false);
+        // Flash the two tiles (error border + shake) for the pause. firstRow/Col
+        // are still valid here; clearTurn() runs later, inside the scheduled task.
+        view.markMismatch(firstRow, firstCol, secondRow, secondCol);
 
         final Tile first = firstTile;
         final int fRow = firstRow;
