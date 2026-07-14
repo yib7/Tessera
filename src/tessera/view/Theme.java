@@ -49,17 +49,15 @@ public final class Theme {
     public static final Color ACCENT_TEXT = Color.WHITE;
 
     // ---- Success (green) / matched tile ------------------------------------
-    public static final Color SUCCESS = new Color(0x2F, 0x9E, 0x44);
+    /** Matched border + match-glow. */
     public static final Color SUCCESS_HI = new Color(0x40, 0xC0, 0x57);
     /** Face fill of a matched tile (light green). */
     public static final Color TILE_MATCHED = new Color(0xE6, 0xF5, 0xEA);
-    public static final Color TILE_MATCHED_BORDER = new Color(0x40, 0xC0, 0x57);
     /** Dark green glyph — high contrast on the light-green matched face. */
     public static final Color MATCHED_GLYPH = new Color(0x1B, 0x7A, 0x32);
 
     // ---- Error (red) — mismatch flash --------------------------------------
     public static final Color ERROR = new Color(0xE0, 0x31, 0x31);
-    public static final Color ERROR_DEEP = new Color(0xC9, 0x2A, 0x2A);
 
     // ---- Text (ink on light) -----------------------------------------------
     public static final Color TEXT_PRIMARY = new Color(0x28, 0x2B, 0x31);
@@ -69,18 +67,11 @@ public final class Theme {
     // ---- Tile face (up) ----------------------------------------------------
     public static final Color FACE_TOP = new Color(0xFF, 0xFF, 0xFF);
     public static final Color FACE_BOT = new Color(0xF1, 0xEF, 0xE8);
-    /** Default face glyph colour; per-theme tile accents override it. */
-    public static final Color FACE_GLYPH = new Color(0x3B, 0x5B, 0xDB);
-    /** Flat stand-in for the face; the tile paints the FACE_TOP->FACE_BOT gradient. */
-    public static final Color TILE_FACE = new Color(0xFF, 0xFF, 0xFF);
 
     // ---- Tile back (periwinkle) --------------------------------------------
     public static final Color TB_TOP = new Color(0xEE, 0xF1, 0xFC);
     public static final Color TB_BOT = new Color(0xDC, 0xE3, 0xF7);
     public static final Color TB_BRD = new Color(0xC6, 0xD0, 0xEE);
-    /** Flat stand-in for the back; the tile paints the TB_TOP->TB_BOT gradient. */
-    public static final Color TILE_BACK = new Color(0xDC, 0xE3, 0xF7);
-    public static final Color TILE_BACK_HOVER = new Color(0xE6, 0xEC, 0xFB);
 
     // ---- Lines & painted shadow --------------------------------------------
     /** 1px card / well outline (warm hairline). */
@@ -144,11 +135,6 @@ public final class Theme {
     /** Button label / bold inline label. */
     public static Font label() {
         return new Font(FONT_FAMILY, Font.BOLD, 14);
-    }
-
-    /** Legacy HUD label (bold sans 18); superseded by {@link #hudValue()}. */
-    public static Font hud() {
-        return new Font(FONT_FAMILY, Font.BOLD, 18);
     }
 
     /** HUD chip value, tabular. */

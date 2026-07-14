@@ -22,6 +22,7 @@ import javax.swing.Timer;
  * gently pulses (scale ~1→1.06) while it is on screen; the pulse timer is tied to
  * {@code addNotify}/{@code removeNotify} so it never fires against a detached chip.
  */
+@SuppressWarnings("serial") // Swing component; never serialized.
 public final class Chip extends JComponent {
 
     private static final int PAD_X = 16;

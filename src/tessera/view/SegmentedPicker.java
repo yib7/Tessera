@@ -1,6 +1,5 @@
 package tessera.view;
 
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -24,6 +23,7 @@ import javax.swing.JComponent;
  * where the options are few and worth showing at once (the board-size picker).
  * Painted entirely from {@link Theme} colours; keyboard- and mouse-operable.
  */
+@SuppressWarnings("serial") // Swing component; never serialized.
 public final class SegmentedPicker extends JComponent {
 
     private static final int TRACK_PAD = 4;

@@ -2,7 +2,6 @@ package tessera.view;
 
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -179,13 +178,6 @@ public final class UiFactory {
     /** Muted body / tagline. */
     public static JLabel muted(String text) {
         return label(text, Theme.body(), Theme.TEXT_MUTED);
-    }
-
-    /** Small uppercase letter-spaced caption / eyebrow. */
-    public static JLabel caption(String text) {
-        JLabel label = label(text.toUpperCase(), Theme.tracked(Theme.caption(), 0.14f),
-                Theme.TEXT_MUTED);
-        return label;
     }
 
     private static JLabel label(String text, Font font, Color fg) {

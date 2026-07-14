@@ -1,6 +1,5 @@
 package tessera.view;
 
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
@@ -82,6 +81,7 @@ public final class TableStyle {
      * Body cells: alternating warm row tint; column 0 draws a rank badge (accent
      * for the top three); columns 2+ are tabular (mono, right-aligned).
      */
+    @SuppressWarnings("serial") // Swing renderer; never serialized.
     private static final class CellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,

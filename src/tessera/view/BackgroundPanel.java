@@ -14,7 +14,7 @@ import javax.swing.JPanel;
  * the content. Panels extend this and keep their own child components non-opaque
  * so the ground shows through.
  */
-@SuppressWarnings("serial") // Swing component; never serialized.
+@SuppressWarnings({"serial", "this-escape"}) // Swing component; never serialized; setOpaque in ctor is safe.
 public class BackgroundPanel extends JPanel {
 
     public BackgroundPanel() {

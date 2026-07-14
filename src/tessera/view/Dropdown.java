@@ -32,6 +32,7 @@ import javax.swing.JPopupMenu;
  *
  * @param <T> the option type
  */
+@SuppressWarnings("serial") // Swing component; never serialized.
 public final class Dropdown<T> extends JComponent {
 
     private static final int HEIGHT = 44;

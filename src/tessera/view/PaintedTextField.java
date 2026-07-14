@@ -1,6 +1,5 @@
 package tessera.view;
 
-import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -16,6 +15,7 @@ import javax.swing.JTextField;
  * results-screen name entry. Paints its own background and border (the field is
  * non-opaque), then lets {@link JTextField} draw the text on top.
  */
+@SuppressWarnings("serial") // Swing component; never serialized.
 public final class PaintedTextField extends JTextField {
 
     @SuppressWarnings("this-escape")

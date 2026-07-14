@@ -23,6 +23,7 @@ import javax.swing.Timer;
  * {@link javax.swing.JCheckBox} for a boolean preference (sound cues). The knob
  * slide is a short timer-driven ease so the state change reads as a motion.
  */
+@SuppressWarnings("serial") // Swing component; never serialized.
 public final class ToggleSwitch extends JComponent {
 
     private static final int W = 54;

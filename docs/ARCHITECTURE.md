@@ -59,12 +59,15 @@ without a display, which is what `LogicTests` relies on.
 - `Theme` is the single source of colors and fonts. It picks a system sans-serif
   if one is installed and falls back to the JVM's logical `SansSerif`, so the UI
   never silently substitutes a missing font.
-- `TileButton` is a `JComponent` painted by hand. It renders the three tile
-  states and animates the change between face down and face up as a horizontal
-  squash: scale width to zero, swap which side shows at the midpoint, scale back
-  out. The animation runs on a Swing `Timer`, so it stays on the event dispatch
-  thread. The component holds only presentation state; the logical card state
-  lives in the model.
+- `TileButton` is a `JComponent` painted by hand. It renders the tile's states —
+  face down, hover, keyboard focus, face up, matched, and mismatch — each as a
+  gradient fill with a painted edge, and animates the change between face down and
+  face up as a time-based flip: scale width to zero, swap which side shows at the
+  midpoint, scale back out, with a brightness veil that peaks edge-on. A matched
+  pair pulses a green glow and a mismatched pair shakes with a red flash, all on
+  one Swing `Timer`, so every motion stays on the event dispatch thread. The
+  component holds only presentation state; the logical card state lives in the
+  model.
 - `GamePanel` builds the tile grid, wires each tile's click to the controller,
   and shows the live HUD with pause and quit. It implements the controller's
   `GameView` interface, so the controller drives the animations without knowing
@@ -78,8 +81,10 @@ without a display, which is what `LogicTests` relies on.
   `CardLayout` and implements the `Navigator` interface. This replaces the old
   flow, which created a new `JFrame` for each screen and disposed the previous
   one.
-- `UiFactory` builds the shared styled controls (pill buttons, headings) so the
-  panels read as layout rather than per-widget styling.
+- `UiFactory` builds the shared styled controls (the gradient-painted button set,
+  labels, and chips) so the panels read as layout rather than per-widget styling.
+  The larger de-stocked controls — the segmented picker, dropdown, toggle, text
+  field, and styled leaderboard table — live in their own classes alongside it.
 - `SoundPlayer` synthesizes short sine-tone cues at runtime on a daemon thread.
   Any audio-system failure is swallowed, since cues are not essential to play.
 
@@ -89,8 +94,8 @@ without a display, which is what `LogicTests` relies on.
   them. Panels never reach for sibling panels or frames; they call back through
   this interface, which keeps the navigation graph in `MainWindow`.
 - `GameView` is what the controller needs the board view to do (flip a tile,
-  mark a match, toggle input, update the HUD, signal a win). Implementing it as
-  an interface keeps the controller free of Swing painting code.
+  mark a match or a mismatch, toggle input, update the HUD, signal a win).
+  Implementing it as an interface keeps the controller free of Swing painting code.
 - `GameController` runs one game. It is the only place that mutates the session
   in response to clicks.
 
