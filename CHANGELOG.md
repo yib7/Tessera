@@ -3,6 +3,30 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
+## v3.3.0 - 2026-07-14
+
+A full visual restyle from the dark slate theme to a bright, tactile look.
+Everything is still hand-painted in Graphics2D with no image files, no UI
+libraries, and JDK-safe fonts. Gameplay, scoring, and persistence are unchanged.
+
+### Added
+
+- Mismatch feedback: two tiles that do not match flash a red border and shake,
+  so a wrong guess reads at a glance instead of silently flipping back.
+- A green glow when a pair matches, and a diagonal cascade when the board deals
+  face down to start a round.
+- A celebration on the results screen, and a designed empty state for a
+  leaderboard size that has no scores yet.
+
+### Changed
+
+- Repainted every screen and control on the bright palette: tiles with distinct
+  face-down, hover, keyboard-focus, face-up, matched, and mismatch states;
+  gradient buttons; and custom pickers, a dropdown, toggle, text field, chips,
+  and leaderboard table in place of the stock Swing controls.
+- The tile flip is now a time-based ease-in-out with a brightness veil, replacing
+  the old linear squash.
+
 ## v3.2.0 - 2026-07-12
 
 ### Added

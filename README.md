@@ -30,8 +30,9 @@ sessions.
   pausing mid-turn cannot be used to study a revealed tile.
 - Full keyboard play: arrow keys move focus across the tile grid, Enter or
   Space flips the focused tile, and Escape toggles pause.
-- A flip animation on every tile, drawn with a horizontal squash on a Swing
-  timer.
+- Tactile tile animations on a Swing timer: an ease-in-out flip with a
+  brightness veil, a green glow when a pair matches, and a red flash and shake
+  when a pair misses, so a wrong guess is never in doubt.
 - Optional sound cues, synthesized at runtime (no audio files bundled).
 - A persistent leaderboard keeping the top five runs per board size. The file
   format tolerates a missing or corrupt file and ignores malformed lines instead
