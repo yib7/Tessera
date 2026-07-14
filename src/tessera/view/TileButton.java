@@ -499,4 +499,27 @@ public final class TileButton extends JComponent {
         this.showingFace = faceUp;
         repaint();
     }
+
+    /** Harness only: freeze the matched tile at a point in its green pulse (0..1). */
+    public void debugSetMatchPulse(float pulse) {
+        stopAnim();
+        this.matched = true;
+        this.showingFace = true;
+        this.mismatchActive = false;
+        this.openness = 1f;
+        this.pulse = clamp01(pulse);
+        repaint();
+    }
+
+    /** Harness only: freeze the mismatch flash, sampling the shake wobble at (0..1). */
+    public void debugSetMismatch(float shakeProgress) {
+        stopAnim();
+        this.mismatchActive = true;
+        this.matched = false;
+        this.showingFace = true;
+        this.openness = 1f;
+        float p = clamp01(shakeProgress);
+        this.shakeX = (float) (6.0 * Math.sin(3.0 * 2.0 * Math.PI * p) * (1.0 - p));
+        repaint();
+    }
 }
