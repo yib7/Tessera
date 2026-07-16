@@ -19,6 +19,28 @@ The model package has no dependency on `javax.swing` or `java.awt` except for
 colors packed as plain ints in `TileTheme`. That keeps the game rules testable
 without a display, which is what `LogicTests` relies on.
 
+## Screen flow
+
+Every screen is a card in one `MainWindow`; `Navigator` swaps between them. A run
+moves through the memorize phase into play, and a qualifying score routes through
+name entry to the leaderboard before returning to the menu.
+
+```mermaid
+flowchart TD
+    Launch([Launch]) --> Menu[Main menu]
+    Menu -->|Settings| Settings["Settings: size, theme, sound"]
+    Settings --> Menu
+    Menu -->|View scores| Leaderboard[Leaderboard]
+    Menu -->|Play| Memorize["Memorize phase: board face up, countdown"]
+    Memorize --> Play["Play: flip tiles, match pairs"]
+    Play -->|board solved| Results["Results: score, turns, time"]
+    Results -->|score qualifies| Name[Enter name, save score]
+    Results -->|skip| Menu
+    Results -->|play again| Memorize
+    Name --> Leaderboard
+    Leaderboard --> Menu
+```
+
 ## Model
 
 - `BoardSize` is an enum of named geometries (Easy, Normal, Hard). Each one
@@ -59,8 +81,8 @@ without a display, which is what `LogicTests` relies on.
 - `Theme` is the single source of colors and fonts. It picks a system sans-serif
   if one is installed and falls back to the JVM's logical `SansSerif`, so the UI
   never silently substitutes a missing font.
-- `TileButton` is a `JComponent` painted by hand. It renders the tile's states —
-  face down, hover, keyboard focus, face up, matched, and mismatch — each as a
+- `TileButton` is a `JComponent` painted by hand. It renders the tile's states
+  (face down, hover, keyboard focus, face up, matched, and mismatch), each as a
   gradient fill with a painted edge, and animates the change between face down and
   face up as a time-based flip: scale width to zero, swap which side shows at the
   midpoint, scale back out, with a brightness veil that peaks edge-on. A matched
@@ -83,8 +105,8 @@ without a display, which is what `LogicTests` relies on.
   one.
 - `UiFactory` builds the shared styled controls (the gradient-painted button set,
   labels, and chips) so the panels read as layout rather than per-widget styling.
-  The larger de-stocked controls — the segmented picker, dropdown, toggle, text
-  field, and styled leaderboard table — live in their own classes alongside it.
+  The larger de-stocked controls (the segmented picker, dropdown, toggle, text
+  field, and styled leaderboard table) live in their own classes alongside it.
 - `SoundPlayer` synthesizes short sine-tone cues at runtime on a daemon thread.
   Any audio-system failure is swallowed, since cues are not essential to play.
 
@@ -100,6 +122,22 @@ without a display, which is what `LogicTests` relies on.
   in response to clicks.
 
 ### Turn state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ready: memorize ends, input enabled
+    Ready --> FirstUp: click reveals first tile
+    FirstUp --> Resolving: click reveals second tile
+    Resolving --> Match: faces match
+    Resolving --> Mismatch: faces differ
+    Match --> Ready: both lock face up
+    Match --> [*]: last pair solved
+    Mismatch --> Ready: timer flips both back down
+    note right of Resolving
+        input is frozen while a turn resolves,
+        and while paused, memorizing, or finished
+    end note
+```
 
 A turn is two flips:
 

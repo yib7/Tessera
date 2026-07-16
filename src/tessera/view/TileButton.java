@@ -23,11 +23,12 @@ import javax.swing.Timer;
 /**
  * A single card, painted by hand. It renders the full tile state sheet — face
  * down, face-down hover, keyboard focus, face up, matched, and a mismatch error
- * flash — and animates the change between down and up as a horizontal squash:
- * the tile scales its width to zero, swaps which side it shows at the midpoint,
- * then scales back out. That is the closest a 2D Swing component gets to a card
- * flip without a 3D pipeline, and it runs on a Swing {@link Timer} so it stays on
- * the event dispatch thread.
+ * flash — and animates the change between down and up as a horizontal squash to
+ * edge-on, swapping which side it shows at the midpoint, then opening back out.
+ * A brightness veil darkens the body through the turn so it reads as a card
+ * flipping rather than a slab being squeezed. That is the closest a 2D Swing
+ * component gets to a card flip without a 3D pipeline, and it runs on a Swing
+ * {@link Timer} so it stays on the event dispatch thread.
  *
  * <p>The body is painted inside a small margin of the component bounds; that
  * margin is where the painted under-shadow and the match/mismatch glow live, so
@@ -476,8 +477,10 @@ public final class TileButton extends JComponent {
         g2.drawString(glyph, textX, textY);
     }
 
-    // --- Visible only for the offscreen render harness (tools/RenderShots) so it
-    // can capture static frames of hover / focus / a mid-flip. Not used in play. ---
+    // --- Render/QA seam: state injectors an offscreen render pass uses to compose
+    // static frames (hover, focus, a frozen mid-flip, a match pulse, a mismatch)
+    // without driving the real animation timers. They only set presentation flags
+    // and repaint; they have no effect on interactive play. ---
 
     /** Harness only: set the hover flag for a static capture. */
     public void debugSetHovered(boolean hovered) {
