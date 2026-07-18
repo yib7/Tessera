@@ -3,6 +3,45 @@
 All notable changes to Tessera are recorded here. This project follows
 [semantic versioning](https://semver.org).
 
+## v3.4.0 - 2026-07-18
+
+New player-facing features from a code-audit pass, plus the audit's correctness
+and diagnostics fixes. Gameplay and scoring math are unchanged; the persisted
+leaderboard and settings files stay backward-compatible (older files load
+without conversion).
+
+### Added
+
+- Replay board: the results screen re-deals the exact same layout (a captured
+  deal seed), for a rematch or practice run on the identical board.
+- Leaderboard history and filters: a browsable history is kept per board size
+  beyond the celebrated top five, with a per-theme filter, a Theme column, a
+  Top-5/All toggle, and an in-app "Clear this board" (with confirmation).
+- A Soft / Medium / Loud volume control in settings, scaling the synthesized
+  cue loudness (persisted alongside the sound toggle).
+- Confirmation prompts before losing a run: quitting to the menu mid-game, and
+  leaving a leaderboard-worthy run without saving it.
+- A crash log at `~/.tessera/crash.log` (installed as a default uncaught-
+  exception handler), so a failure under the console-less `javaw` launcher is no
+  longer silent.
+
+### Changed
+
+- Each sound cue now plays on a single mixer line rather than reacquiring a line
+  per note, so a multi-note cue has no gaps between its tones.
+- The minimum window height is 660 (was 600) so the Hard board's tiles stay
+  legible at the smallest allowed size instead of squashing.
+
+### Fixed
+
+- Pausing and then resuming before the first tile flip no longer starts the game
+  clock early: the clock still starts only on the first flip, so idle time before
+  a move never counts against the speed bonus.
+- The memorize countdown chip's pulse animation timer now stops when the
+  countdown ends, instead of continuing to fire for the whole game.
+- Starting a new game now also disposes the previous results screen, so a stale
+  panel (and the session it pinned) cannot linger for an extra game cycle.
+
 ## v3.3.0 - 2026-07-14
 
 A full visual restyle from the dark slate theme to a bright, tactile look.

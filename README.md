@@ -33,11 +33,20 @@ sessions.
 - Tactile tile animations on a Swing timer: an ease-in-out flip with a
   brightness veil, a green glow when a pair matches, and a red flash and shake
   when a pair misses, so a wrong guess is never in doubt.
-- Optional sound cues, synthesized at runtime (no audio files bundled).
-- A persistent leaderboard keeping the top five runs per board size. The file
-  format tolerates a missing or corrupt file and ignores malformed lines instead
-  of crashing.
-- Settings (board size, theme, sound) that persist to disk.
+- Replay any board: the results screen offers "Replay board", which re-deals the
+  exact same layout for a direct rematch or practice run.
+- Guardrails against losing a run: quitting a game in progress, and leaving a
+  leaderboard-worthy run without saving it, both ask for confirmation first, so
+  a stray click never throws away a good run.
+- Optional sound cues, synthesized at runtime (no audio files bundled), with a
+  Soft / Medium / Loud volume control.
+- A persistent leaderboard. The top five runs per board size are the headline
+  board, with a browsable history beyond that, a per-theme filter, and an in-app
+  clear. The file format tolerates a missing or corrupt file and ignores
+  malformed lines instead of crashing.
+- Settings (board size, theme, sound, volume) that persist to disk.
+- A crash log written to `~/.tessera/crash.log` if the game hits an unexpected
+  error, so a "won't start" report has something to attach.
 
 ## Tech stack
 

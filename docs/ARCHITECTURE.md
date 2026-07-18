@@ -28,15 +28,16 @@ name entry to the leaderboard before returning to the menu.
 ```mermaid
 flowchart TD
     Launch([Launch]) --> Menu[Main menu]
-    Menu -->|Settings| Settings["Settings: size, theme, sound"]
+    Menu -->|Settings| Settings["Settings: size, theme, sound, volume"]
     Settings --> Menu
-    Menu -->|View scores| Leaderboard[Leaderboard]
+    Menu -->|View scores| Leaderboard["Leaderboard: per size, theme filter, top-5/all, clear"]
     Menu -->|Play| Memorize["Memorize phase: board face up, countdown"]
     Memorize --> Play["Play: flip tiles, match pairs"]
     Play -->|board solved| Results["Results: score, turns, time"]
     Results -->|score qualifies| Name[Enter name, save score]
     Results -->|skip| Menu
     Results -->|play again| Memorize
+    Results -->|replay board, same seed| Memorize
     Name --> Leaderboard
     Leaderboard --> Menu
 ```
@@ -60,21 +61,35 @@ flowchart TD
 - `GameSession` is the mutable state of one playthrough: the board, the running
   tallies (turns, matches, mismatches), and a clock that only advances while the
   game is running and not paused. It is the single source of truth the HUD,
-  pause, and scoring all read from.
+  pause, and scoring all read from. It also records the deal seed so a finished
+  run can be replayed on the identical layout, and it gates clock resume on the
+  clock having actually started, so a pause/resume before the first flip cannot
+  start the clock early. The clock reads a monotonic source that is injectable
+  for deterministic tests.
 - `ScoreCalculator` turns a finished session into one comparable number. The
   score is a per-pair reward scaled by board size, minus a per-mismatch penalty,
   plus a speed bonus that decays after a short grace period. The result is
   clamped at zero.
 - `ScoreEntry` is one persisted high score as a record, with tab-delimited
-  serialization and a forgiving parser that returns null on a malformed line.
-- `Leaderboard` keeps the top five entries per board size, ranked by score with
-  turns then time as tie-breakers. It tolerates a missing file (starts empty)
-  and skips malformed lines instead of failing.
-- `Settings` holds board size, theme, and the sound toggle, persisted as a
-  properties file. Reads fall back to defaults on any problem.
+  serialization and a forgiving parser that returns null on a malformed line. It
+  carries an optional tile theme (for the leaderboard's theme filter); the theme
+  is an appended sixth column, so theme-less entries and pre-theme files still
+  serialize and parse as the original five columns.
+- `Leaderboard` keeps a per-board-size history, ranked by score with turns then
+  time as tie-breakers. The top five per size are the "celebrated" board used for
+  name entry and `qualifies`; more are retained (up to a history cap) for the
+  browsable "All" view so a near-miss run is not lost. It also clears one size on
+  request. It tolerates a missing file (starts empty) and skips malformed lines
+  instead of failing.
+- `Settings` holds board size, theme, the sound toggle, and a volume level,
+  persisted as a properties file. Reads fall back to defaults on any problem, and
+  a missing volume key (an older file) falls back to the default.
 - `DataPaths` resolves the writable data directory under the user's home
   (`~/.tessera`). The original game wrote to a relative `./Resources/` path that
   broke when launched from a packaged jar.
+- `CrashLog` appends a timestamped entry to `~/.tessera/crash.log`, best-effort.
+  It is installed as the default uncaught-exception handler so a failure under the
+  console-less `javaw` launcher leaves a diagnostic trail.
 
 ## View
 
@@ -108,13 +123,17 @@ flowchart TD
   The larger de-stocked controls (the segmented picker, dropdown, toggle, text
   field, and styled leaderboard table) live in their own classes alongside it.
 - `SoundPlayer` synthesizes short sine-tone cues at runtime on a daemon thread.
-  Any audio-system failure is swallowed, since cues are not essential to play.
+  Each cue plays on a single mixer line (all its notes written before the line
+  closes) and is scaled by a volume level. Any audio-system failure is swallowed,
+  since cues are not essential to play.
 
 ## Controller
 
 - `Navigator` defines the screens and the methods panels call to move between
-  them. Panels never reach for sibling panels or frames; they call back through
-  this interface, which keeps the navigation graph in `MainWindow`.
+  them, including `startGame` and `replayGame` (a new game on a finished run's
+  exact size, theme, and seed). Panels never reach for sibling panels or frames;
+  they call back through this interface, which keeps the navigation graph in
+  `MainWindow`.
 - `GameView` is what the controller needs the board view to do (flip a tile,
   mark a match or a mismatch, toggle input, update the HUD, signal a win).
   Implementing it as an interface keeps the controller free of Swing painting code.
@@ -157,18 +176,24 @@ owns the countdown and the reveal so the rule still lives in the controller.
 
 ## Startup flow
 
-`Tessera.main` runs on the event dispatch thread. It applies the system
+`Tessera.main` installs `CrashLog` as the default uncaught-exception handler,
+then hands off to the event dispatch thread. There it applies the system
 look-and-feel as a base, layers `Theme`'s UIManager defaults on top, loads
 settings and the leaderboard, and shows `MainWindow` on the menu screen. From
-there `Navigator` drives every screen change.
+there `Navigator` drives every screen change. Because the EDT routes its uncaught
+exceptions to that default handler, a failure during startup is logged even
+though the game launches without a console.
 
 ## Persistence
 
-Two files under `~/.tessera`:
+Files under `~/.tessera`:
 
-- `settings.properties`: board size, tile theme, sound toggle.
-- `leaderboard.tsv`: top scores, one tab-delimited line per entry, grouped by
-  board size, with a comment header.
+- `settings.properties`: board size, tile theme, sound toggle, and volume.
+- `leaderboard.tsv`: scores, one tab-delimited line per entry, grouped by board
+  size, with a comment header. Each line is five columns, or six when a tile
+  theme is recorded (the sixth is optional, so older five-column files still
+  load).
+- `crash.log`: appended best-effort if the game hits an uncaught exception.
 
 Both are written best-effort. A failed settings write is ignored so it never
 blocks play. `Leaderboard.save` still raises an unchecked exception on a write
