@@ -8,6 +8,10 @@ package tessera.model;
  */
 public enum BoardSize {
 
+    // MAINTAINERS: every size must have an even rows*cols — the constructor's
+    // parity guard throws otherwise, and because it runs inside the enum
+    // constructor the failure surfaces only the first time BoardSize is loaded
+    // (an ExceptionInInitializerError with a deep stack), not at compile time.
     EASY("Easy", 3, 4),
     NORMAL("Normal", 4, 7),
     HARD("Hard", 7, 8);

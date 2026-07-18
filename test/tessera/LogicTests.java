@@ -50,6 +50,12 @@ public final class LogicTests {
         testCorruptLinesRejected();
         testQualifiesTieUsesRankOrder();
         testSettingsRoundTrip();
+        testClockDoesNotStartOnResumeBeforeFirstFlip();
+        testPauseExcludesPausedInterval();
+        testClockFrozenAfterFinish();
+        testLeaderboardSizesAreIndependent();
+        testFormattedTimeZeroPads();
+        testThemeFaceBounds();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -273,6 +279,125 @@ public final class LogicTests {
                     !loaded.soundEnabled());
         } finally {
             Files.deleteIfExists(tmp);
+        }
+    }
+
+    // --- clock (pause/resume) ------------------------------------------------
+
+    /**
+     * A pause/resume before the player's first flip must NOT start the clock
+     * (P1-1). {@code resumeClock()} is gated on the clock ever having started, so
+     * the memorize phase never leaks into elapsed time.
+     */
+    private static void testClockDoesNotStartOnResumeBeforeFirstFlip() {
+        long[] clock = {0};
+        GameSession session = freshSession(clock);
+        // Simulate hitting Pause then Resume straight out of the memorize phase,
+        // before any tile has been clicked (so startClock was never called).
+        session.pauseClock();       // no-op: clock was never running
+        clock[0] = 5_000_000_000L;  // 5 s of wall time passes while "resumed"
+        session.resumeClock();      // must stay a no-op: everStarted is false
+        clock[0] = 9_000_000_000L;
+        check("resume before the first flip does not start the clock",
+                session.elapsedMillis() == 0);
+
+        // The clock still starts normally on the first real flip.
+        session.startClock();
+        clock[0] = 9_500_000_000L;  // 0.5 s of play
+        check("the clock starts on the first flip after an early pause/resume",
+                session.elapsedMillis() == 500);
+    }
+
+    /** Elapsed time excludes the paused interval (mid-game pause/resume). */
+    private static void testPauseExcludesPausedInterval() {
+        long[] clock = {0};
+        GameSession session = freshSession(clock);
+        session.startClock();          // t=0
+        clock[0] = 3_000_000_000L;     // 3 s played
+        session.pauseClock();
+        clock[0] = 60_000_000_000L;    // 57 s paused (must not count)
+        session.resumeClock();
+        clock[0] = 62_000_000_000L;    // +2 s played
+        check("elapsed time excludes the paused interval (3s + 2s = 5s)",
+                session.elapsedMillis() == 5_000);
+    }
+
+    /** Once finished, the clock is frozen: start/resume are no-ops. */
+    private static void testClockFrozenAfterFinish() {
+        long[] clock = {0};
+        GameSession session = freshSession(clock);
+        session.startClock();          // t=0
+        clock[0] = 10_000_000_000L;    // 10 s played
+        session.finish();              // folds in the 10 s and marks finished
+        clock[0] = 30_000_000_000L;
+        session.startClock();          // no-op: finished
+        session.resumeClock();         // no-op: finished
+        clock[0] = 50_000_000_000L;
+        check("startClock/resumeClock are no-ops after finish (elapsed stays 10s)",
+                session.elapsedMillis() == 10_000);
+    }
+
+    private static GameSession freshSession(long[] clock) {
+        Board board = new Board(BoardSize.EASY, TileTheme.LETTERS, new Random(7));
+        return new GameSession(BoardSize.EASY, TileTheme.LETTERS, board, () -> clock[0]);
+    }
+
+    // --- leaderboard (multi-size) + formatting + theme -----------------------
+
+    /**
+     * Filling one board size to capacity must not disturb the other sizes: the
+     * leaderboard is partitioned per size, so top-N trimming of HARD leaves the
+     * lone EASY and NORMAL entries intact.
+     */
+    private static void testLeaderboardSizesAreIndependent() throws IOException {
+        Path tmp = Files.createTempFile("tessera-multisize", ".tsv");
+        Files.delete(tmp);
+        Leaderboard lb = new Leaderboard(tmp);
+        lb.submit(new ScoreEntry("Ez", BoardSize.EASY, 500, 6, 20_000));
+        lb.submit(new ScoreEntry("Nm", BoardSize.NORMAL, 900, 14, 40_000));
+        // Overfill HARD well past its cap to force trimming.
+        for (int i = 0; i < Leaderboard.MAX_PER_SIZE + 3; i++) {
+            lb.submit(new ScoreEntry("H" + i, BoardSize.HARD, 1000 + i, 20, 60_000));
+        }
+        check("filling HARD does not affect the EASY entry",
+                lb.topFor(BoardSize.EASY).size() == 1
+                        && lb.topFor(BoardSize.EASY).get(0).name().equals("Ez"));
+        check("filling HARD does not affect the NORMAL entry",
+                lb.topFor(BoardSize.NORMAL).size() == 1
+                        && lb.topFor(BoardSize.NORMAL).get(0).name().equals("Nm"));
+        check("HARD is capped at MAX_PER_SIZE",
+                lb.topFor(BoardSize.HARD).size() == Leaderboard.MAX_PER_SIZE);
+        Files.deleteIfExists(tmp);
+    }
+
+    /** {@link ScoreEntry#formattedTime()} renders m:ss with a zero-padded seconds field. */
+    private static void testFormattedTimeZeroPads() {
+        check("0 ms formats as 0:00", timeText(0).equals("0:00"));
+        check("5 s formats as 0:05", timeText(5_000).equals("0:05"));
+        check("65 s formats as 1:05 (seconds zero-padded)", timeText(65_000).equals("1:05"));
+        check("125 s formats as 2:05", timeText(125_000).equals("2:05"));
+        check("600 s formats as 10:00", timeText(600_000).equals("10:00"));
+    }
+
+    private static String timeText(long millis) {
+        return new ScoreEntry("x", BoardSize.NORMAL, 1, 1, millis).formattedTime();
+    }
+
+    /**
+     * {@link TileTheme#faces(int)} guards its bounds, and every theme supplies at
+     * least enough faces for the hardest board (so no board can ever run short).
+     */
+    private static void testThemeFaceBounds() {
+        for (TileTheme theme : TileTheme.values()) {
+            check(theme.displayName() + " supplies enough faces for HARD",
+                    theme.faceCount() >= BoardSize.HARD.pairCount());
+            boolean threw = false;
+            try {
+                theme.faces(theme.faceCount() + 1);
+            } catch (IllegalArgumentException expected) {
+                threw = true;
+            }
+            check(theme.displayName() + " rejects a request for more faces than it has", threw);
         }
     }
 
