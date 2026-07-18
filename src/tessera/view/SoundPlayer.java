@@ -74,37 +74,30 @@ public final class SoundPlayer {
         if (!enabled) {
             return;
         }
-        Thread t = new Thread(() -> {
-            for (int i = 0; i < frequenciesHz.length; i++) {
-                emit(frequenciesHz[i], durationsMs[i]);
-            }
-        }, "tessera-sound");
+        Thread t = new Thread(() -> render(frequenciesHz, durationsMs), "tessera-sound");
         t.setDaemon(true);
         t.start();
     }
 
-    private void emit(double frequencyHz, int durationMs) {
+    /**
+     * Render a whole cue on ONE mixer line: acquire a single
+     * {@link SourceDataLine}, write every tone of the cue to it back to back,
+     * then drain and close. Reusing one line for the cue avoids a fresh line
+     * acquisition per note, which could otherwise leave small audible gaps inside
+     * a multi-note fanfare and wastes open/close work.
+     */
+    private void render(int[] frequenciesHz, int[] durationsMs) {
         try {
-            int frames = (int) (SAMPLE_RATE * durationMs / 1000.0);
-            byte[] buffer = new byte[frames];
-            int fade = Math.max(1, frames / 8);
-            for (int i = 0; i < frames; i++) {
-                double angle = 2.0 * Math.PI * i * frequencyHz / SAMPLE_RATE;
-                double amplitude = 1.0;
-                if (i < fade) {
-                    amplitude = (double) i / fade;
-                } else if (i > frames - fade) {
-                    amplitude = (double) (frames - i) / fade;
-                }
-                buffer[i] = (byte) (Math.sin(angle) * 90 * amplitude);
-            }
             AudioFormat format = new AudioFormat(SAMPLE_RATE, 8, 1, true, false);
             try (SourceDataLine line = AudioSystem.getSourceDataLine(format)) {
                 openLines.add(line);
                 try {
                     line.open(format);
                     line.start();
-                    line.write(buffer, 0, buffer.length);
+                    for (int i = 0; i < frequenciesHz.length; i++) {
+                        byte[] buffer = tone(frequenciesHz[i], durationsMs[i]);
+                        line.write(buffer, 0, buffer.length);
+                    }
                     line.drain();
                 } finally {
                     openLines.remove(line);
@@ -113,5 +106,23 @@ public final class SoundPlayer {
         } catch (Exception ignored) {
             // No mixer, or it is busy: cues are non-essential, so do nothing.
         }
+    }
+
+    /** Synthesise one fading sine-burst tone into an 8-bit PCM buffer. */
+    private byte[] tone(double frequencyHz, int durationMs) {
+        int frames = (int) (SAMPLE_RATE * durationMs / 1000.0);
+        byte[] buffer = new byte[frames];
+        int fade = Math.max(1, frames / 8);
+        for (int i = 0; i < frames; i++) {
+            double angle = 2.0 * Math.PI * i * frequencyHz / SAMPLE_RATE;
+            double amplitude = 1.0;
+            if (i < fade) {
+                amplitude = (double) i / fade;
+            } else if (i > frames - fade) {
+                amplitude = (double) (frames - i) / fade;
+            }
+            buffer[i] = (byte) (Math.sin(angle) * 90 * amplitude);
+        }
+        return buffer;
     }
 }

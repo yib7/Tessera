@@ -11,6 +11,7 @@ import java.util.Random;
 import tessera.controller.GameController;
 import tessera.controller.GameView;
 import tessera.model.Board;
+import tessera.model.CrashLog;
 import tessera.model.BoardSize;
 import tessera.model.GameSession;
 import tessera.model.Leaderboard;
@@ -56,6 +57,7 @@ public final class LogicTests {
         testLeaderboardSizesAreIndependent();
         testFormattedTimeZeroPads();
         testThemeFaceBounds();
+        testCrashLogAppends();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -399,6 +401,27 @@ public final class LogicTests {
             }
             check(theme.displayName() + " rejects a request for more faces than it has", threw);
         }
+    }
+
+    // --- crash log -----------------------------------------------------------
+
+    /**
+     * {@link CrashLog} records a throwable's message, its stack-trace class, and
+     * the context line, and appends (a second crash keeps the first entry).
+     */
+    private static void testCrashLogAppends() throws IOException {
+        Path tmp = Files.createTempFile("tessera-crash", ".log");
+        Files.delete(tmp);
+        CrashLog.record(tmp, new IllegalStateException("boom-one"), "startup context");
+        CrashLog.record(tmp, new RuntimeException("boom-two"), "second context");
+        String content = Files.readString(tmp);
+        check("crash log records the throwable message", content.contains("boom-one"));
+        check("crash log records the stack-trace class",
+                content.contains("IllegalStateException"));
+        check("crash log records the context line", content.contains("Context: startup context"));
+        check("crash log appends rather than overwrites",
+                content.contains("boom-one") && content.contains("boom-two"));
+        Files.deleteIfExists(tmp);
     }
 
     // --- controller ----------------------------------------------------------
