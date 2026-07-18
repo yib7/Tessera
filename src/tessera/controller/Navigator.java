@@ -18,6 +18,12 @@ public interface Navigator {
     /** Start a new game with the current settings and show the board. */
     void startGame();
 
+    /**
+     * Start a new game on the same board as a finished session — same size,
+     * theme, and deal seed — so the identical layout can be replayed.
+     */
+    void replayGame(GameSession session);
+
     /** Show the results screen for a finished session. */
     void showResults(GameSession session);
 

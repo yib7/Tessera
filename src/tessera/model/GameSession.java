@@ -14,6 +14,9 @@ public final class GameSession {
     private final Board board;
     private final BoardSize size;
     private final TileTheme theme;
+    // The RNG seed this board was dealt from, so a finished run can be replayed
+    // on the identical layout. 0 for boards not created for replay tracking.
+    private final long seed;
 
     private int turns;
     private int matches;
@@ -34,7 +37,12 @@ public final class GameSession {
     private boolean finished;
 
     public GameSession(BoardSize size, TileTheme theme, Board board) {
-        this(size, theme, board, System::nanoTime);
+        this(size, theme, board, 0L, System::nanoTime);
+    }
+
+    /** Production constructor that records the deal {@code seed} for replay. */
+    public GameSession(BoardSize size, TileTheme theme, Board board, long seed) {
+        this(size, theme, board, seed, System::nanoTime);
     }
 
     /**
@@ -43,9 +51,15 @@ public final class GameSession {
      * {@link System#nanoTime}.
      */
     public GameSession(BoardSize size, TileTheme theme, Board board, LongSupplier nanoClock) {
+        this(size, theme, board, 0L, nanoClock);
+    }
+
+    private GameSession(BoardSize size, TileTheme theme, Board board, long seed,
+            LongSupplier nanoClock) {
         this.size = size;
         this.theme = theme;
         this.board = board;
+        this.seed = seed;
         this.nanoClock = nanoClock;
     }
 
@@ -59,6 +73,11 @@ public final class GameSession {
 
     public TileTheme theme() {
         return theme;
+    }
+
+    /** The RNG seed this board was dealt from (for replaying the same layout). */
+    public long seed() {
+        return seed;
     }
 
     public int turns() {

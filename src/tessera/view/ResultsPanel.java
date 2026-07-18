@@ -66,7 +66,7 @@ public final class ResultsPanel extends BackgroundPanel {
         if (qualifies) {
             addNameEntry(navigator, session, leaderboard, column);
         } else {
-            addPlainActions(navigator, column);
+            addPlainActions(navigator, session, column);
         }
 
         add(column, new GridBagConstraints());
@@ -110,13 +110,29 @@ public final class ResultsPanel extends BackgroundPanel {
         submit.addActionListener(e -> doSubmit.run());
         nameField.addActionListener(e -> doSubmit.run());
 
+        // Leaving without saving discards a leaderboard-worthy run, so confirm
+        // first — the player was just told this score makes the board, and
+        // "Play again"/"Skip"/"Replay" read as "keep going", not "throw it away".
         JButton skip = UiFactory.ghostButton("Skip");
-        skip.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
+        skip.addActionListener(e -> {
+            if (confirmDiscard()) {
+                navigator.show(Navigator.Screen.MENU);
+            }
+        });
 
-        // Starts a fresh game without saving this run, mirroring Skip's discard
-        // semantics but heading to a new game instead of the menu.
+        JButton replay = UiFactory.secondaryButton("Replay board");
+        replay.addActionListener(e -> {
+            if (confirmDiscard()) {
+                navigator.replayGame(session);
+            }
+        });
+
         JButton again = UiFactory.secondaryButton("Play again");
-        again.addActionListener(e -> navigator.startGame());
+        again.addActionListener(e -> {
+            if (confirmDiscard()) {
+                navigator.startGame();
+            }
+        });
 
         column.add(prompt);
         column.add(Box.createRigidArea(new Dimension(0, 12)));
@@ -128,6 +144,8 @@ public final class ResultsPanel extends BackgroundPanel {
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
         buttons.add(skip);
         buttons.add(Box.createRigidArea(new Dimension(12, 0)));
+        buttons.add(replay);
+        buttons.add(Box.createRigidArea(new Dimension(12, 0)));
         buttons.add(again);
         buttons.add(Box.createRigidArea(new Dimension(12, 0)));
         buttons.add(submit);
@@ -135,17 +153,34 @@ public final class ResultsPanel extends BackgroundPanel {
         column.add(buttons);
     }
 
-    private void addPlainActions(Navigator navigator, JPanel column) {
+    /**
+     * Warn before abandoning a run that qualifies for the leaderboard but has not
+     * been saved. Returns true if the player confirms the discard.
+     */
+    private boolean confirmDiscard() {
+        int choice = JOptionPane.showConfirmDialog(this,
+                "This run makes the leaderboard, but you haven't saved it yet.\n\n"
+                        + "Leave without saving? Its score will be lost.",
+                "Score not saved", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        return choice == JOptionPane.YES_OPTION;
+    }
+
+    private void addPlainActions(Navigator navigator, GameSession session, JPanel column) {
         JPanel buttons = new JPanel();
         buttons.setOpaque(false);
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
 
-        JButton again = UiFactory.primaryButton("Play again");
-        again.addActionListener(e -> navigator.startGame());
         JButton menu = UiFactory.secondaryButton("Menu");
         menu.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
+        // No score to lose here, so replay/play-again need no confirmation.
+        JButton replay = UiFactory.secondaryButton("Replay board");
+        replay.addActionListener(e -> navigator.replayGame(session));
+        JButton again = UiFactory.primaryButton("Play again");
+        again.addActionListener(e -> navigator.startGame());
 
         buttons.add(menu);
+        buttons.add(Box.createRigidArea(new Dimension(12, 0)));
+        buttons.add(replay);
         buttons.add(Box.createRigidArea(new Dimension(12, 0)));
         buttons.add(again);
         buttons.setAlignmentX(Component.CENTER_ALIGNMENT);

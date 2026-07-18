@@ -4,15 +4,18 @@ import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Toolkit;
+import java.util.Random;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
 import tessera.controller.Navigator;
 import tessera.model.Board;
+import tessera.model.BoardSize;
 import tessera.model.GameSession;
 import tessera.model.Leaderboard;
 import tessera.model.Settings;
+import tessera.model.TileTheme;
 
 /**
  * The single application window. It hosts every screen in a CardLayout and is
@@ -76,18 +79,29 @@ public final class MainWindow extends JFrame implements Navigator {
 
     @Override
     public void startGame() {
-        Board board = new Board(settings.boardSize(), settings.tileTheme());
-        GameSession session = new GameSession(settings.boardSize(),
-                settings.tileTheme(), board);
+        // A fresh random seed per game; captured on the session so the finished
+        // run can be replayed on the identical layout.
+        beginGame(settings.boardSize(), settings.tileTheme(), new Random().nextLong());
+    }
+
+    @Override
+    public void replayGame(GameSession previous) {
+        // Same size, theme, and seed as the finished run → the identical deal.
+        beginGame(previous.size(), previous.theme(), previous.seed());
+    }
+
+    private void beginGame(BoardSize size, TileTheme theme, long seed) {
+        Board board = new Board(size, theme, new Random(seed));
+        GameSession session = new GameSession(size, theme, board, seed);
         // Detach any previous game panel first. Adding a new card under the same
         // name only replaces the CardLayout entry; the old panel stays attached
         // and keeps its clock Timer firing forever. Removing it fires its
         // removeNotify(), the single place that stops that panel's timers.
         disposePrevious(GamePanel.class);
         // Also drop any prior ResultsPanel now (symmetry with showResults). After
-        // a finished game "Play again" comes through here, so without this the
-        // just-shown ResultsPanel — and the session/board it pins — would linger
-        // until the next showResults() call.
+        // a finished game "Play again"/"Replay" comes through here, so without this
+        // the just-shown ResultsPanel — and the session/board it pins — would
+        // linger until the next showResults() call.
         disposePrevious(ResultsPanel.class);
 
         GamePanel gamePanel = new GamePanel(this, session, sound);

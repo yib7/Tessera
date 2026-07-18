@@ -58,6 +58,7 @@ public final class LogicTests {
         testFormattedTimeZeroPads();
         testThemeFaceBounds();
         testCrashLogAppends();
+        testBoardSeedIsReproducible();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -422,6 +423,31 @@ public final class LogicTests {
         check("crash log appends rather than overwrites",
                 content.contains("boom-one") && content.contains("boom-two"));
         Files.deleteIfExists(tmp);
+    }
+
+    // --- replay (seeded deal) ------------------------------------------------
+
+    /**
+     * Two boards dealt from the same seed are laid out identically, and a
+     * {@link GameSession} records its seed — the basis for the "Replay board"
+     * feature (replay the exact same layout).
+     */
+    private static void testBoardSeedIsReproducible() {
+        long seed = 123_456_789L;
+        Board a = new Board(BoardSize.HARD, TileTheme.SHAPES, new Random(seed));
+        Board b = new Board(BoardSize.HARD, TileTheme.SHAPES, new Random(seed));
+        boolean identical = true;
+        for (int r = 0; r < a.rows(); r++) {
+            for (int c = 0; c < a.cols(); c++) {
+                if (!a.tileAt(r, c).face().equals(b.tileAt(r, c).face())) {
+                    identical = false;
+                }
+            }
+        }
+        check("the same seed deals an identical board (replay)", identical);
+
+        GameSession session = new GameSession(BoardSize.HARD, TileTheme.SHAPES, a, seed);
+        check("the session records its deal seed", session.seed() == seed);
     }
 
     // --- controller ----------------------------------------------------------
