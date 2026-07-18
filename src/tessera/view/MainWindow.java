@@ -42,6 +42,7 @@ public final class MainWindow extends JFrame implements Navigator {
         this.settings = settings;
         this.leaderboard = leaderboard;
         this.sound = new SoundPlayer(settings.soundEnabled());
+        this.sound.setVolume(settings.soundVolume());
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         // Minimum height is tuned so the largest board (HARD, 7 rows) keeps

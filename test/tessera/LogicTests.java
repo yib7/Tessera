@@ -51,6 +51,7 @@ public final class LogicTests {
         testCorruptLinesRejected();
         testQualifiesTieUsesRankOrder();
         testSettingsRoundTrip();
+        testSettingsVolumeRoundTrip();
         testClockDoesNotStartOnResumeBeforeFirstFlip();
         testPauseExcludesPausedInterval();
         testClockFrozenAfterFinish();
@@ -282,6 +283,32 @@ public final class LogicTests {
                     loaded.tileTheme() == TileTheme.SHAPES);
             check("sound flag survives the settings round trip",
                     !loaded.soundEnabled());
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
+     * The sound volume round-trips, clamps out-of-range values, and defaults when
+     * the key is absent (backward compatible with pre-volume settings files).
+     */
+    private static void testSettingsVolumeRoundTrip() throws IOException {
+        Path tmp = Files.createTempFile("tessera-vol", ".properties");
+        try {
+            Settings s = new Settings();
+            s.setSoundVolume(45);
+            s.save(tmp);
+            check("sound volume survives the settings round trip",
+                    Settings.load(tmp).soundVolume() == 45);
+
+            Settings clamp = new Settings();
+            clamp.setSoundVolume(250);
+            check("an out-of-range volume is clamped to 100", clamp.soundVolume() == 100);
+
+            // A settings file with no volume key loads the default.
+            Files.writeString(tmp, "board.size=Hard\ntile.theme=Letters\nsound.enabled=true\n");
+            check("a settings file without a volume key falls back to the default",
+                    Settings.load(tmp).soundVolume() == Settings.DEFAULT_VOLUME);
         } finally {
             Files.deleteIfExists(tmp);
         }

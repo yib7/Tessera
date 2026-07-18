@@ -32,9 +32,15 @@ public final class SettingsPanel extends BackgroundPanel {
     private final SoundPlayer sound;
     private final Runnable onSaved;
 
+    // Three discrete loudness levels (0-100) offered by the volume picker; keeps
+    // the de-stocked toolkit consistent rather than introducing a painted slider.
+    private static final int[] VOLUME_LEVELS = {45, 75, 100};
+    private static final String[] VOLUME_LABELS = {"Soft", "Medium", "Loud"};
+
     private final SegmentedPicker sizePicker;
     private final Dropdown<TileTheme> themePicker;
     private final ToggleSwitch soundToggle;
+    private final SegmentedPicker volumePicker;
 
     public SettingsPanel(Navigator navigator, Settings settings, SoundPlayer sound,
             Runnable onSaved) {
@@ -52,6 +58,7 @@ public final class SettingsPanel extends BackgroundPanel {
         themePicker = new Dropdown<>(TileTheme.values(), TileTheme::displayName,
                 settings.tileTheme().ordinal());
         soundToggle = new ToggleSwitch(settings.soundEnabled());
+        volumePicker = new SegmentedPicker(VOLUME_LABELS, levelIndexFor(settings.soundVolume()));
 
         JPanel column = new JPanel();
         column.setOpaque(false);
@@ -63,12 +70,14 @@ public final class SettingsPanel extends BackgroundPanel {
         Card card = new Card();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBorder(javax.swing.BorderFactory.createEmptyBorder(26, 30, 28, 30));
-        card.setMaximumSize(new Dimension(460, 320));
+        card.setMaximumSize(new Dimension(460, 388));
         card.add(row("Board size", sizePicker));
         card.add(Box.createRigidArea(new Dimension(0, 18)));
         card.add(row("Tile theme", themePicker));
         card.add(Box.createRigidArea(new Dimension(0, 18)));
         card.add(row("Sound cues", soundToggle));
+        card.add(Box.createRigidArea(new Dimension(0, 18)));
+        card.add(row("Volume", volumePicker));
         card.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel buttons = new JPanel();
@@ -118,13 +127,30 @@ public final class SettingsPanel extends BackgroundPanel {
         sizePicker.setSelectedIndex(settings.boardSize().ordinal());
         themePicker.setSelected(settings.tileTheme());
         soundToggle.setOn(settings.soundEnabled());
+        volumePicker.setSelectedIndex(levelIndexFor(settings.soundVolume()));
+    }
+
+    /** Nearest discrete level index for a stored 0-100 volume. */
+    private static int levelIndexFor(int volume) {
+        int best = 0;
+        int bestDist = Integer.MAX_VALUE;
+        for (int i = 0; i < VOLUME_LEVELS.length; i++) {
+            int dist = Math.abs(VOLUME_LEVELS[i] - volume);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = i;
+            }
+        }
+        return best;
     }
 
     private void save(Navigator navigator) {
         settings.setBoardSize(BoardSize.values()[sizePicker.getSelectedIndex()]);
         settings.setTileTheme(themePicker.getSelected());
         settings.setSoundEnabled(soundToggle.isOn());
+        settings.setSoundVolume(VOLUME_LEVELS[volumePicker.getSelectedIndex()]);
         sound.setEnabled(settings.soundEnabled());
+        sound.setVolume(settings.soundVolume());
         try {
             settings.save();
         } catch (RuntimeException e) {

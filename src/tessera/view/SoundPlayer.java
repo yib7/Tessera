@@ -20,7 +20,10 @@ import javax.sound.sampled.SourceDataLine;
 public final class SoundPlayer {
 
     private static final float SAMPLE_RATE = 44_100f;
+    // Peak 8-bit sample amplitude at full volume (headroom below 127 avoids clipping).
+    private static final double PEAK_AMPLITUDE = 90.0;
     private boolean enabled;
+    private volatile int volume = 100; // 0-100; scales the synth amplitude
 
     // Lines currently open on cue threads, so the shutdown hook can close them.
     private final Set<SourceDataLine> openLines = ConcurrentHashMap.newKeySet();
@@ -43,6 +46,11 @@ public final class SoundPlayer {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    /** Set cue loudness, 0-100 (clamped). Applies to subsequent cues. */
+    public void setVolume(int volume) {
+        this.volume = Math.max(0, Math.min(100, volume));
     }
 
     /** A short rising blip when a tile is revealed. */
@@ -113,6 +121,7 @@ public final class SoundPlayer {
         int frames = (int) (SAMPLE_RATE * durationMs / 1000.0);
         byte[] buffer = new byte[frames];
         int fade = Math.max(1, frames / 8);
+        double peak = PEAK_AMPLITUDE * (volume / 100.0);
         for (int i = 0; i < frames; i++) {
             double angle = 2.0 * Math.PI * i * frequencyHz / SAMPLE_RATE;
             double amplitude = 1.0;
@@ -121,7 +130,7 @@ public final class SoundPlayer {
             } else if (i > frames - fade) {
                 amplitude = (double) (frames - i) / fade;
             }
-            buffer[i] = (byte) (Math.sin(angle) * 90 * amplitude);
+            buffer[i] = (byte) (Math.sin(angle) * peak * amplitude);
         }
         return buffer;
     }

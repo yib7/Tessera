@@ -18,10 +18,15 @@ public final class Settings {
     private static final String KEY_SIZE = "board.size";
     private static final String KEY_THEME = "tile.theme";
     private static final String KEY_SOUND = "sound.enabled";
+    private static final String KEY_VOLUME = "sound.volume";
+
+    /** Default cue loudness (0-100) when nothing is persisted yet. */
+    public static final int DEFAULT_VOLUME = 75;
 
     private BoardSize boardSize = BoardSize.NORMAL;
     private TileTheme tileTheme = TileTheme.LETTERS;
     private boolean soundEnabled = true;
+    private int soundVolume = DEFAULT_VOLUME;
 
     public BoardSize boardSize() {
         return boardSize;
@@ -47,6 +52,16 @@ public final class Settings {
         this.soundEnabled = soundEnabled;
     }
 
+    /** Cue loudness, 0-100. */
+    public int soundVolume() {
+        return soundVolume;
+    }
+
+    /** Set cue loudness, clamped to 0-100. */
+    public void setSoundVolume(int soundVolume) {
+        this.soundVolume = Math.max(0, Math.min(100, soundVolume));
+    }
+
     /** Load preferences, falling back to defaults on any read problem. */
     public static Settings load() {
         return load(DataPaths.dataDir().resolve(FILE_NAME));
@@ -65,6 +80,14 @@ public final class Settings {
             settings.tileTheme = TileTheme.fromName(props.getProperty(KEY_THEME));
             settings.soundEnabled = Boolean.parseBoolean(
                     props.getProperty(KEY_SOUND, "true"));
+            // Missing or non-numeric volume falls back to the default (backward
+            // compatible with settings files written before volume existed).
+            try {
+                settings.setSoundVolume(Integer.parseInt(
+                        props.getProperty(KEY_VOLUME, Integer.toString(DEFAULT_VOLUME)).trim()));
+            } catch (NumberFormatException e) {
+                settings.soundVolume = DEFAULT_VOLUME;
+            }
         } catch (IOException | RuntimeException e) {
             // Corrupt or unreadable file: keep the defaults already set.
             return new Settings();
@@ -97,7 +120,8 @@ public final class Settings {
                 "# Tessera settings",
                 KEY_SIZE + "=" + boardSize.label(),
                 KEY_THEME + "=" + tileTheme.displayName(),
-                KEY_SOUND + "=" + Boolean.toString(soundEnabled));
+                KEY_SOUND + "=" + Boolean.toString(soundEnabled),
+                KEY_VOLUME + "=" + Integer.toString(soundVolume));
         DataPaths.writeAtomically(path, lines);
     }
 }
