@@ -60,7 +60,7 @@ public final class ResultsPanel extends BackgroundPanel {
         column.add(chips);
         column.add(Box.createRigidArea(new Dimension(0, 28)));
 
-        ScoreEntry candidate = new ScoreEntry("", session.size(),
+        ScoreEntry candidate = new ScoreEntry("", session.size(), session.theme(),
                 session.score(), session.turns(), session.elapsedMillis());
         boolean qualifies = leaderboard.qualifies(candidate);
         if (qualifies) {
@@ -93,7 +93,7 @@ public final class ResultsPanel extends BackgroundPanel {
         Runnable doSubmit = () -> {
             String name = nameField.getText();
             try {
-                leaderboard.submit(new ScoreEntry(name, session.size(),
+                leaderboard.submit(new ScoreEntry(name, session.size(), session.theme(),
                         session.score(), session.turns(), session.elapsedMillis()));
             } catch (RuntimeException e) {
                 // The entry is already on the in-memory board, so the leaderboard

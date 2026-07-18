@@ -2,10 +2,17 @@ package tessera.model;
 
 /**
  * One persisted high score: who set it, on which board size, and the run's
- * score, turn count, and time. Stored as a single tab-delimited line so the
- * file stays human-readable and trivially parseable.
+ * score, turn count, and time. An optional {@link TileTheme} records which tile
+ * theme the run used, so the leaderboard can be filtered by theme; it is null
+ * for legacy entries saved before themes were recorded.
+ *
+ * <p>Stored as a single tab-delimited line so the file stays human-readable and
+ * trivially parseable. For backward compatibility the theme is an optional 6th
+ * field: a theme-less entry serialises to the original 5 columns, and both the
+ * 5- and 6-column shapes parse.
  */
-public record ScoreEntry(String name, BoardSize size, int score, int turns, long timeMillis) {
+public record ScoreEntry(String name, BoardSize size, TileTheme theme, int score, int turns,
+        long timeMillis) {
 
     private static final String DELIM = "\t";
 
@@ -20,18 +27,32 @@ public record ScoreEntry(String name, BoardSize size, int score, int turns, long
         }
     }
 
-    /** Serialise to one tab-delimited line. */
+    /**
+     * Theme-less constructor (backward compatible). Kept so existing call sites
+     * and legacy data that predate per-theme tracking keep working; theme is null.
+     */
+    public ScoreEntry(String name, BoardSize size, int score, int turns, long timeMillis) {
+        this(name, size, null, score, turns, timeMillis);
+    }
+
+    /**
+     * Serialise to one tab-delimited line. Writes the original 5 columns when
+     * there is no theme, or 6 columns (theme appended) when one is recorded, so
+     * old files stay byte-identical and readers of either shape work.
+     */
     public String toLine() {
-        return String.join(DELIM,
+        String base = String.join(DELIM,
                 size.label(),
                 name,
                 Integer.toString(score),
                 Integer.toString(turns),
                 Long.toString(timeMillis));
+        return theme == null ? base : base + DELIM + theme.name();
     }
 
     /**
      * Parse one line, or return null if it is blank, a comment, or malformed.
+     * Accepts both the 5-column (theme-less) and 6-column (theme) shapes.
      * Returning null rather than throwing lets the loader skip bad lines and
      * keep the good ones.
      */
@@ -44,7 +65,7 @@ public record ScoreEntry(String name, BoardSize size, int score, int turns, long
             return null;
         }
         String[] parts = trimmed.split(DELIM);
-        if (parts.length != 5) {
+        if (parts.length != 5 && parts.length != 6) {
             return null;
         }
         try {
@@ -59,7 +80,10 @@ public record ScoreEntry(String name, BoardSize size, int score, int turns, long
             if (score < 0 || turns < 0 || time < 0) {
                 return null;
             }
-            return new ScoreEntry(name, size, score, turns, time);
+            // 6th column is the theme; an unknown value degrades to null rather
+            // than rejecting the whole (otherwise valid) entry.
+            TileTheme theme = parts.length == 6 ? TileTheme.tryFromName(parts[5]) : null;
+            return new ScoreEntry(name, size, theme, score, turns, time);
         } catch (NumberFormatException e) {
             return null;
         }

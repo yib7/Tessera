@@ -8,6 +8,7 @@ import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
@@ -16,6 +17,7 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -26,26 +28,35 @@ import tessera.controller.Navigator;
 import tessera.model.BoardSize;
 import tessera.model.Leaderboard;
 import tessera.model.ScoreEntry;
+import tessera.model.TileTheme;
 
 /**
- * Shows the top scores for one board size at a time, with a segmented tab control
- * to switch sizes. Rebuilds its table from the {@link Leaderboard} each time it is
- * shown so a freshly saved score appears without a restart. When a size has no
- * scores yet it shows a designed empty-state card instead of a blank table.
+ * Shows high scores for one board size at a time, with a segmented tab control to
+ * switch sizes. A theme filter narrows the list to one tile theme (or All), and a
+ * Top-5/All toggle switches between the celebrated top five and the full retained
+ * history so a run that just missed the cut still has a record. A Clear button
+ * (with confirmation) wipes the current size. Rebuilds its table from the
+ * {@link Leaderboard} each time it is shown so a freshly saved score appears
+ * without a restart; an empty result shows a designed empty-state card.
  */
 @SuppressWarnings("serial") // Swing component; never serialized.
 public final class LeaderboardPanel extends BackgroundPanel {
 
-    private static final String[] COLUMNS = {"#", "Name", "Score", "Turns", "Time"};
+    private static final String[] COLUMNS = {"#", "Name", "Theme", "Score", "Turns", "Time"};
     private static final String CARD_TABLE = "TABLE";
     private static final String CARD_EMPTY = "EMPTY";
+    private static final String THEME_ALL = "All";
 
     private final Leaderboard leaderboard;
     private final JTable table = new JTable();
     private final SegmentedPicker sizeTabs;
+    private final SegmentedPicker themeTabs;
+    private final SegmentedPicker modeTabs;
     private final CardLayout tableCards = new CardLayout();
     private final JPanel tableArea = new JPanel(tableCards);
     private BoardSize current = BoardSize.NORMAL;
+    private TileTheme themeFilter = null; // null = All themes
+    private boolean allMode = false;      // false = top 5, true = full history
 
     public LeaderboardPanel(Navigator navigator, Leaderboard leaderboard) {
         this.leaderboard = leaderboard;
@@ -68,11 +79,35 @@ public final class LeaderboardPanel extends BackgroundPanel {
             current = BoardSize.values()[index];
             rebuild();
         });
-        JPanel switcher = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        switcher.setOpaque(false);
-        switcher.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
-        switcher.add(sizeTabs);
-        center.add(switcher, BorderLayout.NORTH);
+
+        // Theme filter: All, then one tab per theme.
+        String[] themeLabels = new String[TileTheme.values().length + 1];
+        themeLabels[0] = THEME_ALL;
+        for (int i = 0; i < TileTheme.values().length; i++) {
+            themeLabels[i + 1] = TileTheme.values()[i].displayName();
+        }
+        themeTabs = new SegmentedPicker(themeLabels, 0);
+        themeTabs.setOnChange(index -> {
+            themeFilter = index == 0 ? null : TileTheme.values()[index - 1];
+            rebuild();
+        });
+
+        modeTabs = new SegmentedPicker(new String[] {"Top 5", "All"}, 0);
+        modeTabs.setOnChange(index -> {
+            allMode = index == 1;
+            rebuild();
+        });
+
+        JPanel controls = new JPanel();
+        controls.setOpaque(false);
+        controls.setLayout(new BoxLayout(controls, BoxLayout.Y_AXIS));
+        controls.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
+        controls.add(centered(sizeTabs));
+        controls.add(Box.createRigidArea(new Dimension(0, 10)));
+        controls.add(centered(themeTabs));
+        controls.add(Box.createRigidArea(new Dimension(0, 10)));
+        controls.add(centered(modeTabs));
+        center.add(controls, BorderLayout.NORTH);
 
         TableStyle.apply(table);
         JScrollPane scroll = new JScrollPane(table);
@@ -89,15 +124,25 @@ public final class LeaderboardPanel extends BackgroundPanel {
 
         JButton back = UiFactory.secondaryButton("Back to menu");
         back.addActionListener(e -> navigator.show(Navigator.Screen.MENU));
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton clear = UiFactory.ghostButton("Clear this board");
+        clear.addActionListener(e -> clearCurrentSize());
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         south.setOpaque(false);
         south.setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
         south.add(back);
+        south.add(clear);
         add(south, BorderLayout.SOUTH);
 
         // The table is populated by rebuild() on every show (MainWindow.show and
         // showSize), so it is intentionally left empty here to avoid building it
         // twice on first load.
+    }
+
+    private static JPanel centered(JComponent control) {
+        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        wrap.setOpaque(false);
+        wrap.add(control);
+        return wrap;
     }
 
     /** The designed empty state: a dimmed motif, a headline, an invitation, a Play CTA. */
@@ -131,7 +176,7 @@ public final class LeaderboardPanel extends BackgroundPanel {
             }
         };
 
-        JLabel headline = new JLabel("No scores yet on this board", SwingConstants.CENTER);
+        JLabel headline = new JLabel("No scores here yet", SwingConstants.CENTER);
         headline.setFont(Theme.heading());
         headline.setForeground(Theme.TEXT_PRIMARY);
         headline.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -166,17 +211,39 @@ public final class LeaderboardPanel extends BackgroundPanel {
         rebuild();
     }
 
-    /** Reload rows for the current size. */
+    /** Reload rows for the current size, theme filter, and mode. */
     public void rebuild() {
-        List<ScoreEntry> top = leaderboard.topFor(current);
+        List<ScoreEntry> base = allMode
+                ? leaderboard.historyFor(current)
+                : leaderboard.topFor(current);
+        List<ScoreEntry> rows = new ArrayList<>();
+        for (ScoreEntry entry : base) {
+            if (themeFilter == null || entry.theme() == themeFilter) {
+                rows.add(entry);
+            }
+        }
+
         DefaultTableModel model = new DefaultTableModel(COLUMNS, 0);
         int rank = 1;
-        for (ScoreEntry entry : top) {
+        for (ScoreEntry entry : rows) {
+            String themeText = entry.theme() == null ? "—" : entry.theme().displayName();
             model.addRow(new Object[] {
-                    rank++, entry.name(), entry.score(), entry.turns(),
+                    rank++, entry.name(), themeText, entry.score(), entry.turns(),
                     entry.formattedTime()});
         }
         table.setModel(model);
-        tableCards.show(tableArea, top.isEmpty() ? CARD_EMPTY : CARD_TABLE);
+        tableCards.show(tableArea, rows.isEmpty() ? CARD_EMPTY : CARD_TABLE);
+    }
+
+    private void clearCurrentSize() {
+        int choice = JOptionPane.showConfirmDialog(this,
+                "Remove every saved score for the " + current.label() + " board?\n\n"
+                        + "This cannot be undone.",
+                "Clear " + current.label() + " scores?",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (choice == JOptionPane.YES_OPTION) {
+            leaderboard.clear(current);
+            rebuild();
+        }
     }
 }

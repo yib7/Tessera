@@ -59,6 +59,8 @@ public final class LogicTests {
         testThemeFaceBounds();
         testCrashLogAppends();
         testBoardSeedIsReproducible();
+        testScoreEntryThemeBackCompat();
+        testLeaderboardHistoryAndClear();
 
         System.out.println();
         System.out.printf("Ran %d checks, %d failure(s).%n", checks, failures);
@@ -422,6 +424,75 @@ public final class LogicTests {
         check("crash log records the context line", content.contains("Context: startup context"));
         check("crash log appends rather than overwrites",
                 content.contains("boom-one") && content.contains("boom-two"));
+        Files.deleteIfExists(tmp);
+    }
+
+    // --- leaderboard theme + history/clear -----------------------------------
+
+    /**
+     * {@link ScoreEntry}'s optional theme is backward-compatible: a legacy
+     * 5-field line parses with a null theme, a themed entry serialises to 6
+     * fields and round-trips its theme, a theme-less entry still writes 5, and an
+     * unknown theme token degrades to null rather than dropping the whole entry.
+     */
+    private static void testScoreEntryThemeBackCompat() {
+        ScoreEntry legacy = ScoreEntry.fromLine("Normal\tAda\t100\t5\t1000");
+        check("a legacy 5-field line parses with a null theme",
+                legacy != null && legacy.theme() == null);
+
+        ScoreEntry themed = new ScoreEntry("Bo", BoardSize.HARD, TileTheme.SHAPES, 900, 12, 30_000);
+        String line = themed.toLine();
+        check("a themed entry serialises 6 tab fields", line.split("\t").length == 6);
+        ScoreEntry parsed = ScoreEntry.fromLine(line);
+        check("a themed entry round-trips with its theme",
+                parsed != null && parsed.theme() == TileTheme.SHAPES && parsed.equals(themed));
+
+        ScoreEntry themeless = new ScoreEntry("Cy", BoardSize.EASY, 50, 3, 5000);
+        check("a theme-less entry still serialises 5 fields",
+                themeless.toLine().split("\t").length == 5);
+
+        ScoreEntry unknown = ScoreEntry.fromLine("Easy\tDee\t10\t2\t2000\tBogusTheme");
+        check("an unknown theme token degrades to a null theme (entry kept)",
+                unknown != null && unknown.theme() == null);
+    }
+
+    /**
+     * The leaderboard retains a browsable history beyond the celebrated top five
+     * (capped at {@link Leaderboard#HISTORY_PER_SIZE}), the history survives a
+     * reload, and {@link Leaderboard#clear} wipes exactly one size.
+     */
+    private static void testLeaderboardHistoryAndClear() throws IOException {
+        Path tmp = Files.createTempFile("tessera-history", ".tsv");
+        Files.delete(tmp);
+        Leaderboard lb = new Leaderboard(tmp);
+        lb.submit(new ScoreEntry("Ez", BoardSize.EASY, 400, 6, 20_000));
+        // Submit well past the top-5 cap but within the history cap.
+        for (int i = 0; i < 8; i++) {
+            lb.submit(new ScoreEntry("H" + i, BoardSize.HARD, 1000 + i, 20, 60_000));
+        }
+        check("topFor still caps at MAX_PER_SIZE",
+                lb.topFor(BoardSize.HARD).size() == Leaderboard.MAX_PER_SIZE);
+        check("historyFor retains the runs beyond the top five",
+                lb.historyFor(BoardSize.HARD).size() == 8);
+
+        // History persists across a reload.
+        Leaderboard reloaded = new Leaderboard(tmp);
+        check("history survives a save/reload round trip",
+                reloaded.historyFor(BoardSize.HARD).size() == 8);
+
+        // Overflow past the history cap is trimmed.
+        for (int i = 0; i < Leaderboard.HISTORY_PER_SIZE + 5; i++) {
+            lb.submit(new ScoreEntry("F" + i, BoardSize.HARD, 5000 + i, 10, 30_000));
+        }
+        check("history is capped at HISTORY_PER_SIZE",
+                lb.historyFor(BoardSize.HARD).size() == Leaderboard.HISTORY_PER_SIZE);
+
+        // Clear wipes only the targeted size.
+        lb.clear(BoardSize.HARD);
+        check("clear empties the cleared size",
+                lb.topFor(BoardSize.HARD).isEmpty() && lb.historyFor(BoardSize.HARD).isEmpty());
+        check("clear leaves other sizes untouched",
+                lb.topFor(BoardSize.EASY).size() == 1);
         Files.deleteIfExists(tmp);
     }
 

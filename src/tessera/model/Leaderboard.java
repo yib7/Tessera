@@ -26,7 +26,10 @@ import java.util.List;
  */
 public final class Leaderboard {
 
+    /** How many top runs per size are the "celebrated" board (name entry, results screen). */
     public static final int MAX_PER_SIZE = 5;
+    /** How many runs per size are retained for the browsable history (the "All" view). */
+    public static final int HISTORY_PER_SIZE = 25;
     private static final String FILE_NAME = "leaderboard.tsv";
 
     // Best score first; fewer turns, then faster time break ties.
@@ -66,8 +69,21 @@ public final class Leaderboard {
         }
     }
 
-    /** Top entries for one board size, best first. */
+    /** The top {@value #MAX_PER_SIZE} entries for one board size, best first. */
     public List<ScoreEntry> topFor(BoardSize size) {
+        return rankedFor(size, MAX_PER_SIZE);
+    }
+
+    /**
+     * The browsable history for one board size — up to {@value #HISTORY_PER_SIZE}
+     * runs, best first — so a run that just misses the celebrated top-5 still has
+     * a record instead of vanishing.
+     */
+    public List<ScoreEntry> historyFor(BoardSize size) {
+        return rankedFor(size, HISTORY_PER_SIZE);
+    }
+
+    private List<ScoreEntry> rankedFor(BoardSize size, int limit) {
         List<ScoreEntry> filtered = new ArrayList<>();
         for (ScoreEntry entry : entries) {
             if (entry.size() == size) {
@@ -75,10 +91,16 @@ public final class Leaderboard {
             }
         }
         filtered.sort(RANK);
-        if (filtered.size() > MAX_PER_SIZE) {
-            return new ArrayList<>(filtered.subList(0, MAX_PER_SIZE));
+        if (filtered.size() > limit) {
+            return new ArrayList<>(filtered.subList(0, limit));
         }
         return filtered;
+    }
+
+    /** Remove every entry for one board size and persist. */
+    public void clear(BoardSize size) {
+        entries.removeIf(entry -> entry.size() == size);
+        save();
     }
 
     /**
@@ -118,7 +140,7 @@ public final class Leaderboard {
     private void trimAllSizes() {
         List<ScoreEntry> kept = new ArrayList<>();
         for (BoardSize size : BoardSize.values()) {
-            kept.addAll(topFor(size));
+            kept.addAll(historyFor(size));
         }
         entries.clear();
         entries.addAll(kept);
@@ -126,9 +148,9 @@ public final class Leaderboard {
 
     private void save() {
         List<String> lines = new ArrayList<>();
-        lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis)");
+        lines.add("# Tessera leaderboard  (size\tname\tscore\tturns\ttimeMillis\ttheme)");
         for (BoardSize size : BoardSize.values()) {
-            for (ScoreEntry entry : topFor(size)) {
+            for (ScoreEntry entry : historyFor(size)) {
                 lines.add(entry.toLine());
             }
         }

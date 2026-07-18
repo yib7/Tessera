@@ -82,7 +82,13 @@ public enum TileTheme {
         return Arrays.asList(Arrays.copyOf(faces, count));
     }
 
-    public static TileTheme fromName(String name) {
+    /**
+     * Resolve a saved theme name (either {@link #displayName} or the enum
+     * {@link #name}) to a theme, or null if none matches. Callers that must
+     * distinguish "no theme recorded" from a known theme use this; callers that
+     * want a safe default use {@link #fromName}.
+     */
+    public static TileTheme tryFromName(String name) {
         if (name != null) {
             for (TileTheme theme : values()) {
                 if (theme.displayName.equalsIgnoreCase(name.trim())
@@ -91,7 +97,12 @@ public enum TileTheme {
                 }
             }
         }
-        return LETTERS;
+        return null;
+    }
+
+    public static TileTheme fromName(String name) {
+        TileTheme theme = tryFromName(name);
+        return theme != null ? theme : LETTERS;
     }
 
     private static String[] chars(String s) {
