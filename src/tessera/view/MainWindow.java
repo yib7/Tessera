@@ -41,7 +41,12 @@ public final class MainWindow extends JFrame implements Navigator {
         this.sound = new SoundPlayer(settings.soundEnabled());
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(760, 600));
+        // Minimum height is tuned so the largest board (HARD, 7 rows) keeps
+        // legible tiles at the smallest allowed window: GridLayout divides the
+        // available height evenly, so at 600px tall HARD tiles squashed to ~48px;
+        // 660px keeps them ~57px (nearer the ~72px design and well above a usable
+        // hit-target floor). Width is unchanged.
+        setMinimumSize(new Dimension(760, 660));
         setSize(960, 720);
 
         this.menuPanel = new MenuPanel(this, settings);
@@ -79,6 +84,11 @@ public final class MainWindow extends JFrame implements Navigator {
         // and keeps its clock Timer firing forever. Removing it fires its
         // removeNotify(), the single place that stops that panel's timers.
         disposePrevious(GamePanel.class);
+        // Also drop any prior ResultsPanel now (symmetry with showResults). After
+        // a finished game "Play again" comes through here, so without this the
+        // just-shown ResultsPanel — and the session/board it pins — would linger
+        // until the next showResults() call.
+        disposePrevious(ResultsPanel.class);
 
         GamePanel gamePanel = new GamePanel(this, session, sound);
         root.add(gamePanel, Screen.GAME.name());

@@ -19,8 +19,12 @@ import javax.swing.Timer;
  * so a ticking clock or a growing score never changes width and jitters the row.
  *
  * <p>The accent (countdown) variant is tinted with {@link Theme#ACCENT_TINT} and
- * gently pulses (scale ~1→1.06) while it is on screen; the pulse timer is tied to
- * {@code addNotify}/{@code removeNotify} so it never fires against a detached chip.
+ * gently pulses (scale ~1→1.06) while the countdown is on screen. The pulse timer
+ * is driven explicitly by {@link #startPulse()}/{@link #stopPulse()} — the owner
+ * starts it when the chip is shown and stops it when the countdown ends — so the
+ * 60 Hz timer runs only during the few-second countdown, not for the whole game.
+ * {@code removeNotify} also stops it as a safety net if the chip is detached
+ * mid-pulse.
  */
 @SuppressWarnings("serial") // Swing component; never serialized.
 public final class Chip extends JComponent {
@@ -67,27 +71,40 @@ public final class Chip extends JComponent {
         return new Dimension(Math.max(w, 72), h);
     }
 
-    @Override
-    public void addNotify() {
-        super.addNotify();
-        if (accent && pulseTimer == null) {
-            pulseStartNanos = System.nanoTime();
-            pulseTimer = new Timer(16, e -> {
-                float t = (System.nanoTime() - pulseStartNanos) / 1_000_000_000f;
-                // Breathe between 1.0 and ~1.06 once per ~0.9s.
-                pulse = 1f + 0.03f + 0.03f * (float) Math.sin(t * (2 * Math.PI / 0.9));
-                repaint();
-            });
-            pulseTimer.start();
+    /**
+     * Begin the accent pulse. Idempotent and a no-op on a non-accent chip. Called
+     * by the owner when the countdown chip is shown, so the 60 Hz timer only runs
+     * while the countdown is actually on screen.
+     */
+    public void startPulse() {
+        if (!accent || pulseTimer != null) {
+            return;
         }
+        pulseStartNanos = System.nanoTime();
+        pulseTimer = new Timer(16, e -> {
+            float t = (System.nanoTime() - pulseStartNanos) / 1_000_000_000f;
+            // Breathe between 1.0 and ~1.06 once per ~0.9s.
+            pulse = 1f + 0.03f + 0.03f * (float) Math.sin(t * (2 * Math.PI / 0.9));
+            repaint();
+        });
+        pulseTimer.start();
     }
 
-    @Override
-    public void removeNotify() {
+    /** Stop the accent pulse and settle the chip back to its unscaled size. */
+    public void stopPulse() {
         if (pulseTimer != null) {
             pulseTimer.stop();
             pulseTimer = null;
         }
+        pulse = 1f;
+        repaint();
+    }
+
+    @Override
+    public void removeNotify() {
+        // Safety net: if the chip is torn down mid-pulse the timer must not
+        // outlive it. Normal lifecycle stops the pulse via stopPulse().
+        stopPulse();
         super.removeNotify();
     }
 

@@ -19,6 +19,7 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
@@ -160,13 +161,7 @@ public final class GamePanel extends BackgroundPanel implements GameView {
         controls.setLayout(new BoxLayout(controls, BoxLayout.X_AXIS));
         pauseButton.addActionListener(e -> togglePause());
         JButton menuButton = UiFactory.ghostButton("Quit to menu");
-        menuButton.addActionListener(e -> {
-            // Stop this panel's timers before leaving. removeNotify() is the
-            // guaranteed teardown when the panel is later replaced, but quitting
-            // to the menu only hides the card, so stop the clock now too.
-            stopTimers();
-            navigator.show(Navigator.Screen.MENU);
-        });
+        menuButton.addActionListener(e -> quitToMenu());
         controls.add(pauseButton);
         controls.add(Box.createRigidArea(new Dimension(8, 0)));
         controls.add(menuButton);
@@ -215,6 +210,29 @@ public final class GamePanel extends BackgroundPanel implements GameView {
             }
         }
         return panel;
+    }
+
+    /**
+     * Leave for the menu, confirming first if a run is actually in progress (at
+     * least one turn taken and not yet finished) so a mid-game run — with its
+     * turns, matches, and elapsed time — is not thrown away on a single stray
+     * click. An untouched board (memorize phase, or no flips yet) leaves silently.
+     */
+    private void quitToMenu() {
+        if (session.turns() > 0 && !session.isFinished()) {
+            int choice = JOptionPane.showConfirmDialog(this,
+                    "Quitting now ends this run — your progress and time are lost.\n\n"
+                            + "Quit to the menu?",
+                    "Quit to menu?", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+        // Stop this panel's timers before leaving. removeNotify() is the
+        // guaranteed teardown when the panel is later replaced, but quitting to
+        // the menu only hides the card, so stop the clock now too.
+        stopTimers();
+        navigator.show(Navigator.Screen.MENU);
     }
 
     private void togglePause() {
@@ -283,6 +301,10 @@ public final class GamePanel extends BackgroundPanel implements GameView {
     private void showCountdown(int seconds) {
         countdownChip.setValue(seconds + "s");
         hudCenterCards.show(hudCenter, CARD_COUNTDOWN);
+        // Run the accent pulse only while the countdown is on screen. CardLayout
+        // just toggles visibility (it never fires removeNotify on the hidden
+        // card), so the pulse must be driven explicitly, not via addNotify.
+        countdownChip.startPulse();
     }
 
     /**
@@ -292,6 +314,9 @@ public final class GamePanel extends BackgroundPanel implements GameView {
      */
     private void finishPreview() {
         hudCenterCards.show(hudCenter, CARD_STATS);
+        // The countdown is done: stop its 60 Hz pulse timer so it does not keep
+        // firing on the EDT for the rest of the game.
+        countdownChip.stopPulse();
         controller.endPreview();
 
         int lastRow = tiles.length - 1;
@@ -401,6 +426,7 @@ public final class GamePanel extends BackgroundPanel implements GameView {
 
     private void stopTimers() {
         clockTimer.stop();
+        countdownChip.stopPulse();
         if (previewTimer != null) {
             previewTimer.stop();
         }
